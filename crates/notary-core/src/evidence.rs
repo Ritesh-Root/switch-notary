@@ -86,10 +86,7 @@ impl Evidence {
     /// # Errors
     /// If the body has no canonical form (a float somewhere).
     pub fn seal(body: Body) -> Result<Self, NotaryError> {
-        Ok(Self {
-            id: ids::content_id("ev", &body)?,
-            body,
-        })
+        Ok(Self { id: ids::content_id("ev", &body)?, body })
     }
 
     /// Read evidence back from its stored bytes, refusing anything that no longer hashes to `id`.
@@ -102,10 +99,7 @@ impl Evidence {
             return Err(bad("stored bytes don't hash to this id"));
         }
         let body: Body = serde_json::from_slice(stored).map_err(|e| bad(&e.to_string()))?;
-        Ok(Self {
-            id: id.to_string(),
-            body,
-        })
+        Ok(Self { id: id.to_string(), body })
     }
 
     /// The bytes to store (canonical).
@@ -127,15 +121,9 @@ mod tests {
             authority: Authority::NotaryRun,
             confidence: Confidence::Observed,
             coverage: Coverage::Complete,
-            subject: Subject {
-                repo: "acme-invoices".into(),
-                sha: Some("a".repeat(40)),
-            },
+            subject: Subject { repo: "acme-invoices".into(), sha: Some("a".repeat(40)) },
             operation: Op::NotaryTestRun,
-            params: json!({"argv": ["pytest", "-q"]})
-                .as_object()
-                .cloned()
-                .unwrap(),
+            params: json!({"argv": ["pytest", "-q"]}).as_object().cloned().unwrap(),
             result: json!({"passed": 41, "failed": 1}),
             limitations: vec![],
         }
@@ -146,15 +134,8 @@ mod tests {
         let ev = Evidence::seal(body()).unwrap();
         let bytes = ev.bytes().unwrap();
         assert_eq!(Evidence::authenticate(&ev.id, &bytes).unwrap(), ev);
-        let forged = String::from_utf8(bytes)
-            .unwrap()
-            .replace("\"failed\":1", "\"failed\":0");
-        assert_eq!(
-            Evidence::authenticate(&ev.id, forged.as_bytes())
-                .unwrap_err()
-                .code,
-            Code::IntegrityMismatch
-        );
+        let forged = String::from_utf8(bytes).unwrap().replace("\"failed\":1", "\"failed\":0");
+        assert_eq!(Evidence::authenticate(&ev.id, forged.as_bytes()).unwrap_err().code, Code::IntegrityMismatch);
     }
 
     #[test]
@@ -162,9 +143,7 @@ mod tests {
         let a = Evidence::seal(body()).unwrap();
         assert_eq!(a.id, Evidence::seal(body()).unwrap().id);
         let mut b = body();
-        b.coverage = Coverage::Partial {
-            limitations: vec!["log truncated".into()],
-        };
+        b.coverage = Coverage::Partial { limitations: vec!["log truncated".into()] };
         assert_ne!(a.id, Evidence::seal(b).unwrap().id);
     }
 }

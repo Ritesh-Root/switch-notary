@@ -29,15 +29,10 @@ impl Policy {
     /// # Errors
     /// `configuration_invalid` naming what's wrong.
     pub fn parse(doc: &str) -> Result<Self, NotaryError> {
-        let bad = |why: String| {
-            NotaryError::new(Code::ConfigurationInvalid, format!("Desk Policy: {why}"))
-        };
+        let bad = |why: String| NotaryError::new(Code::ConfigurationInvalid, format!("Desk Policy: {why}"));
         let blocks = fenced_blocks(doc, "notary-policy");
         let [block] = blocks.as_slice() else {
-            return Err(bad(format!(
-                "expected one notary-policy block, found {}",
-                blocks.len()
-            )));
+            return Err(bad(format!("expected one notary-policy block, found {}", blocks.len())));
         };
         let p: Self = serde_json::from_str(block).map_err(|e| bad(e.to_string()))?;
         if p.protocol != PROTOCOL {
@@ -59,9 +54,7 @@ impl Policy {
 
     #[must_use]
     pub fn is_approver(&self, username: &str) -> bool {
-        self.approvers
-            .iter()
-            .any(|a| a.eq_ignore_ascii_case(username))
+        self.approvers.iter().any(|a| a.eq_ignore_ascii_case(username))
     }
 }
 
@@ -75,9 +68,7 @@ fn matches(pattern: &str, path: &str) -> bool {
     let name = path.rsplit('/').next().unwrap_or(path);
     match pattern.split_once('*') {
         None => pattern == name,
-        Some((pre, post)) => {
-            name.len() >= pre.len() + post.len() && name.starts_with(pre) && name.ends_with(post)
-        }
+        Some((pre, post)) => name.len() >= pre.len() + post.len() && name.starts_with(pre) && name.ends_with(post),
     }
 }
 
@@ -92,36 +83,17 @@ mod tests {
         let p = Policy::parse(DOC).unwrap();
         assert!(p.is_approver("Priya"));
         assert!(!p.is_approver("sam"));
-        for hit in [
-            "tests/test_reports.py",
-            ".github/workflows/ci.yml",
-            "uv.lock",
-            "requirements-dev.txt",
-            "pkg/conftest.py",
-        ] {
+        for hit in ["tests/test_reports.py", ".github/workflows/ci.yml", "uv.lock", "requirements-dev.txt", "pkg/conftest.py"] {
             assert!(p.is_protected(hit), "{hit}");
         }
-        for miss in [
-            "src/invoices/tax.py",
-            "testsuite.py",
-            "requirements.md",
-            "src/tests.py",
-        ] {
+        for miss in ["src/invoices/tax.py", "testsuite.py", "requirements.md", "src/tests.py"] {
             assert!(!p.is_protected(miss), "{miss}");
         }
     }
 
     #[test]
     fn a_broken_policy_is_a_configuration_error() {
-        assert_eq!(
-            Policy::parse("no block").unwrap_err().code,
-            Code::ConfigurationInvalid
-        );
-        assert_eq!(
-            Policy::parse(&DOC.replace("\"max_bounces\":2", "\"max_bounces\":0"))
-                .unwrap_err()
-                .code,
-            Code::ConfigurationInvalid
-        );
+        assert_eq!(Policy::parse("no block").unwrap_err().code, Code::ConfigurationInvalid);
+        assert_eq!(Policy::parse(&DOC.replace("\"max_bounces\":2", "\"max_bounces\":0")).unwrap_err().code, Code::ConfigurationInvalid);
     }
 }

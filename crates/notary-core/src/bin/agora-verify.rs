@@ -26,19 +26,10 @@ fn main() {
     };
     let result = std::fs::read(&path)
         .map_err(|e| format!("can't read {path}: {e}"))
-        .and_then(|bytes| {
-            serde_json::from_slice::<Bundle>(&bytes)
-                .map_err(|e| format!("{path} isn't a receipt: {e}"))
-        })
+        .and_then(|bytes| serde_json::from_slice::<Bundle>(&bytes).map_err(|e| format!("{path} isn't a receipt: {e}")))
         .and_then(|bundle| verify(&bundle, key.as_deref()));
     match result {
-        Ok(v) => println!(
-            "OK {}: {} entries, chain intact, head {}, signed by {}",
-            v.run,
-            v.entries,
-            &v.head[..16],
-            &v.key[..16]
-        ),
+        Ok(v) => println!("OK {}: {} entries, chain intact, head {}, signed by {}", v.run, v.entries, &v.head[..16], &v.key[..16]),
         Err(why) => {
             println!("FAIL: {why}");
             std::process::exit(1);

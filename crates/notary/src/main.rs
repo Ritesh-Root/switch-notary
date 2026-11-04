@@ -17,25 +17,10 @@ use serde_json::Value;
 fn load_agent(cfg: &config::Config) -> Result<switch::Agent, NotaryError> {
     let path = cfg.state_dir.join("agent.json");
     let bad = |why: String| NotaryError::new(Code::ConfigurationInvalid, why);
-    let text = std::fs::read_to_string(&path).map_err(|e| {
-        bad(format!(
-            "can't read {}: {e} (run scripts/register.sh)",
-            path.display()
-        ))
-    })?;
-    let v: Value = serde_json::from_str(&text)
-        .map_err(|e| bad(format!("{} isn't JSON: {e}", path.display())))?;
-    let field = |k: &str| {
-        v.get(k)
-            .and_then(Value::as_str)
-            .map(str::to_string)
-            .ok_or_else(|| bad(format!("{} has no {k}", path.display())))
-    };
-    Ok(switch::Agent::new(
-        &cfg.switch_url,
-        &field("id")?,
-        &field("api_key")?,
-    ))
+    let text = std::fs::read_to_string(&path).map_err(|e| bad(format!("can't read {}: {e} (run scripts/register.sh)", path.display())))?;
+    let v: Value = serde_json::from_str(&text).map_err(|e| bad(format!("{} isn't JSON: {e}", path.display())))?;
+    let field = |k: &str| v.get(k).and_then(Value::as_str).map(str::to_string).ok_or_else(|| bad(format!("{} has no {k}", path.display())));
+    Ok(switch::Agent::new(&cfg.switch_url, &field("id")?, &field("api_key")?))
 }
 
 /// The connection id is kept across restarts, so a restart takes over the old connection.
@@ -71,16 +56,11 @@ async fn main() {
 
 async fn run() -> Result<(), NotaryError> {
     let cfg = config::Config::from_env()?;
-    std::fs::create_dir_all(&cfg.state_dir)
-        .map_err(|e| NotaryError::new(Code::ConfigurationInvalid, e.to_string()))?;
+    std::fs::create_dir_all(&cfg.state_dir).map_err(|e| NotaryError::new(Code::ConfigurationInvalid, e.to_string()))?;
     let agent = load_agent(&cfg)?;
     let connection = connection_id(&cfg.state_dir);
     let mut desk = desk::Desk::open(cfg, agent.clone(), connection.clone())?;
-    eprintln!(
-        "notary: running as agent {} (signing key {})",
-        agent.id,
-        desk.public_key()
-    );
+    eprintln!("notary: running as agent {} (signing key {})", agent.id, desk.public_key());
     let mut events = switch::ws::spawn(agent.clone(), connection);
     while let Some(event) = events.recv().await {
         match event {
@@ -110,47 +90,25 @@ async fn run() -> Result<(), NotaryError> {
 async fn doctor() -> Result<(), NotaryError> {
     let mut failed = 0;
     let mut report = |name: &str, r: Result<String, NotaryError>| match r {
-        Ok(note) => println!(
-            "ok    {name}{}",
-            if note.is_empty() {
-                String::new()
-            } else {
-                format!(": {note}")
-            }
-        ),
+        Ok(note) => println!("ok    {name}{}", if note.is_empty() { String::new() } else { format!(": {note}") }),
         Err(e) => {
             failed += 1;
-            println!(
-                "FAIL  {name}: {} ({})\n      {}",
-                e.code,
-                e.detail,
-                e.code.meta().remediation
-            );
+            println!("FAIL  {name}: {} ({})\n      {}", e.code, e.detail, e.code.meta().remediation);
         }
     };
     let cfg = match config::Config::from_env() {
         Ok(c) => c,
         Err(e) => {
             report("config", Err(e));
-            return Err(NotaryError::new(
-                Code::ConfigurationInvalid,
-                "fix the configuration first",
-            ));
+            return Err(NotaryError::new(Code::ConfigurationInvalid, "fix the configuration first"));
         }
     };
     report(
         "config",
-        Ok(format!(
-            "sandbox {:?}, approval {:?}, activity {}",
-            cfg.engine,
-            cfg.approval,
-            if cfg.activity.is_some() { "on" } else { "off" }
-        )),
+        Ok(format!("sandbox {:?}, approval {:?}, activity {}", cfg.engine, cfg.approval, if cfg.activity.is_some() { "on" } else { "off" })),
     );
     let up = |e: switch::SwitchError| NotaryError::new(Code::UpstreamUnavailable, e.to_string());
-    let health = reqwest::get(format!("{}/health", cfg.switch_url))
-        .await
-        .map_err(|e| NotaryError::new(Code::UpstreamUnavailable, e.to_string()));
+    let health = reqwest::get(format!("{}/health", cfg.switch_url)).await.map_err(|e| NotaryError::new(Code::UpstreamUnavailable, e.to_string()));
     report("switch", health.map(|r| r.status().to_string()));
     match load_agent(&cfg) {
         Ok(agent) => {
@@ -166,10 +124,7 @@ async fn doctor() -> Result<(), NotaryError> {
                     if names.iter().any(|n| n == "agora-notary") {
                         Ok(names.join(", "))
                     } else {
-                        Err(NotaryError::new(
-                            Code::ConfigurationInvalid,
-                            format!("agora-notary isn't in it ({})", names.join(", ")),
-                        ))
+                        Err(NotaryError::new(Code::ConfigurationInvalid, format!("agora-notary isn't in it ({})", names.join(", "))))
                     }
                 });
                 report(name, r);
@@ -177,33 +132,15 @@ async fn doctor() -> Result<(), NotaryError> {
         }
         Err(e) => report("agent key", Err(e)),
     }
-    let mirror = git::Mirror {
-        url: cfg.repo_url.clone(),
-        dir: cfg.data_dir.join("mirror.git"),
-    };
+    let mirror = git::Mirror { url: cfg.repo_url.clone(), dir: cfg.data_dir.join("mirror.git") };
     let fetched = async {
         mirror.fetch().await?;
         mirror.branch_head("main").await
     }
     .await;
-    report(
-        "git",
-        fetched.map(|sha| format!("{} main at {}", cfg.repo_name, &sha[..7])),
-    );
-    let sandbox = sandbox::Sandbox::new(
-        cfg.engine,
-        &cfg.image,
-        cfg.test_timeout,
-        cfg.data_dir.join("runs"),
-        "doctor",
-    );
-    report(
-        "sandbox",
-        sandbox
-            .check()
-            .await
-            .map(|()| format!("image {}", &cfg.image[..12])),
-    );
+    report("git", fetched.map(|sha| format!("{} main at {}", cfg.repo_name, &sha[..7])));
+    let sandbox = sandbox::Sandbox::new(cfg.engine, &cfg.image, cfg.test_timeout, cfg.data_dir.join("runs"), "doctor");
+    report("sandbox", sandbox.check().await.map(|()| format!("image {}", &cfg.image[..12])));
     if let Some((email, password)) = &cfg.activity {
         let g = switch::gateway::Gateway::new(&cfg.switch_url, email, password);
         let r = async {
@@ -211,27 +148,14 @@ async fn doctor() -> Result<(), NotaryError> {
             g.activity(&cfg.work_room).await.map_err(up)
         }
         .await;
-        report(
-            "activity",
-            r.map(|rows| format!("{} rows readable", rows.len())),
-        );
+        report("activity", r.map(|rows| format!("{} rows readable", rows.len())));
     }
-    if failed == 0 {
-        Ok(())
-    } else {
-        Err(NotaryError::new(
-            Code::ConfigurationInvalid,
-            format!("{failed} check(s) failed"),
-        ))
-    }
+    if failed == 0 { Ok(()) } else { Err(NotaryError::new(Code::ConfigurationInvalid, format!("{failed} check(s) failed"))) }
 }
 
 /// An ISO-8601 UTC timestamp `hours` from now.
 pub(crate) fn iso_in_hours(hours: u64) -> String {
-    let secs = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_secs())
-        + hours * 3600;
+    let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs()) + hours * 3600;
     let days = secs / 86_400;
     let rem = secs % 86_400;
     // Civil-from-days (Howard Hinnant), for dates after 1970.
@@ -244,12 +168,7 @@ pub(crate) fn iso_in_hours(hours: u64) -> String {
     let d = doy - (153 * mp + 2) / 5 + 1;
     let m = if mp < 10 { mp + 3 } else { mp - 9 };
     let y = yoe + era * 400 + i64::from(m <= 2);
-    format!(
-        "{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}Z",
-        rem / 3600,
-        rem % 3600 / 60,
-        rem % 60
-    )
+    format!("{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}Z", rem / 3600, rem % 3600 / 60, rem % 60)
 }
 
 #[cfg(test)]

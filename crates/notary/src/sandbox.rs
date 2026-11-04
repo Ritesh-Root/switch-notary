@@ -83,31 +83,13 @@ async fn engine(engine: Engine, args: &[&str]) -> Result<std::process::Output, N
         .kill_on_drop(true)
         .output()
         .await
-        .map_err(|e| {
-            NotaryError::new(
-                Code::SandboxUnavailable,
-                format!("{} {}: {e}", engine.bin(), args.first().unwrap_or(&"")),
-            )
-        })
+        .map_err(|e| NotaryError::new(Code::SandboxUnavailable, format!("{} {}: {e}", engine.bin(), args.first().unwrap_or(&""))))
 }
 
 impl Sandbox {
     #[must_use]
-    pub fn new(
-        engine: Engine,
-        image: &str,
-        timeout: Duration,
-        work_dir: PathBuf,
-        owner: &str,
-    ) -> Self {
-        Self {
-            engine,
-            image: image.to_string(),
-            timeout,
-            work_dir,
-            owner: owner.to_string(),
-            pending_cleanup: Vec::new(),
-        }
+    pub fn new(engine: Engine, image: &str, timeout: Duration, work_dir: PathBuf, owner: &str) -> Self {
+        Self { engine, image: image.to_string(), timeout, work_dir, owner: owner.to_string(), pending_cleanup: Vec::new() }
     }
 
     /// Whether the pinned image is present (no pulling: `--pull never` everywhere).
@@ -115,42 +97,21 @@ impl Sandbox {
     /// # Errors
     /// `sandbox_unavailable` naming what's missing.
     pub async fn check(&self) -> Result<(), NotaryError> {
-        let out = engine(
-            self.engine,
-            &["image", "inspect", "--format", "{{.Id}}", &self.image],
-        )
-        .await?;
-        let id = String::from_utf8_lossy(&out.stdout)
-            .trim()
-            .trim_start_matches("sha256:")
-            .to_string();
+        let out = engine(self.engine, &["image", "inspect", "--format", "{{.Id}}", &self.image]).await?;
+        let id = String::from_utf8_lossy(&out.stdout).trim().trim_start_matches("sha256:").to_string();
         if out.status.success() && id == self.image {
             Ok(())
         } else {
             Err(NotaryError::new(
                 Code::SandboxUnavailable,
-                format!(
-                    "image {} isn't loaded in {}; run make sandbox-image",
-                    &self.image[..12.min(self.image.len())],
-                    self.engine.bin()
-                ),
+                format!("image {} isn't loaded in {}; run make sandbox-image", &self.image[..12.min(self.image.len())], self.engine.bin()),
             ))
         }
     }
 
     /// Remove a container, but only after proving it's ours.
     async fn remove(&self, cid: &str) -> bool {
-        let Ok(out) = engine(
-            self.engine,
-            &[
-                "inspect",
-                "--format",
-                &format!("{{{{index .Config.Labels \"{OWNER_LABEL}\"}}}}"),
-                cid,
-            ],
-        )
-        .await
-        else {
+        let Ok(out) = engine(self.engine, &["inspect", "--format", &format!("{{{{index .Config.Labels \"{OWNER_LABEL}\"}}}}"), cid]).await else {
             return false;
         };
         if !out.status.success() {
@@ -161,10 +122,7 @@ impl Sandbox {
         }
         for delay in [0, 250, 1000, 4000] {
             tokio::time::sleep(Duration::from_millis(delay)).await;
-            if engine(self.engine, &["rm", "-f", cid])
-                .await
-                .is_ok_and(|o| o.status.success())
-            {
+            if engine(self.engine, &["rm", "-f", cid]).await.is_ok_and(|o| o.status.success()) {
                 return true;
             }
         }
@@ -176,12 +134,7 @@ impl Sandbox {
     /// # Errors
     /// `sandbox_unavailable` (no engine or image), `cleanup_incomplete` (an old container is
     /// stuck), or `sandbox_failed` (timeout, bad handshake, unreadable result).
-    pub async fn run(
-        &mut self,
-        mirror: &Mirror,
-        sha: &str,
-        argv: &[String],
-    ) -> Result<Outcome, NotaryError> {
+    pub async fn run(&mut self, mirror: &Mirror, sha: &str, argv: &[String]) -> Result<Outcome, NotaryError> {
         let mut still = Vec::new();
         for cid in std::mem::take(&mut self.pending_cleanup) {
             if !self.remove(&cid).await {
@@ -190,10 +143,7 @@ impl Sandbox {
         }
         if !still.is_empty() {
             self.pending_cleanup = still;
-            return Err(NotaryError::new(
-                Code::CleanupIncomplete,
-                "a previous sandbox container couldn't be removed",
-            ));
+            return Err(NotaryError::new(Code::CleanupIncomplete, "a previous sandbox container couldn't be removed"));
         }
         self.check().await?;
 
@@ -201,12 +151,7 @@ impl Sandbox {
         let dir = self.work_dir.join(&run_id);
         let src = dir.join("src");
         let out_dir = dir.join("out");
-        std::fs::create_dir_all(&out_dir).map_err(|e| {
-            NotaryError::new(
-                Code::SandboxFailed,
-                format!("can't create {}: {e}", out_dir.display()),
-            )
-        })?;
+        std::fs::create_dir_all(&out_dir).map_err(|e| NotaryError::new(Code::SandboxFailed, format!("can't create {}: {e}", out_dir.display())))?;
         set_private(&dir);
         mirror.export(sha, &src).await?;
         let result = self.run_in(&dir, &src, &out_dir, &run_id, sha, argv).await;
@@ -214,15 +159,7 @@ impl Sandbox {
         result
     }
 
-    async fn run_in(
-        &mut self,
-        dir: &Path,
-        src: &Path,
-        out_dir: &Path,
-        run_id: &str,
-        sha: &str,
-        argv: &[String],
-    ) -> Result<Outcome, NotaryError> {
+    async fn run_in(&mut self, dir: &Path, src: &Path, out_dir: &Path, run_id: &str, sha: &str, argv: &[String]) -> Result<Outcome, NotaryError> {
         let failed = |why: String| NotaryError::new(Code::SandboxFailed, why);
         let cidfile = dir.join("cid");
         let argv_json = serde_json::to_string(argv).map_err(|e| failed(e.to_string()))?;
@@ -279,18 +216,9 @@ impl Sandbox {
         let arg_refs: Vec<&str> = create.iter().map(String::as_str).collect();
         let created = engine(self.engine, &arg_refs).await?;
         if !created.status.success() {
-            return Err(failed(format!(
-                "create: {}",
-                String::from_utf8_lossy(&created.stderr)
-                    .lines()
-                    .last()
-                    .unwrap_or_default()
-            )));
+            return Err(failed(format!("create: {}", String::from_utf8_lossy(&created.stderr).lines().last().unwrap_or_default())));
         }
-        let cid = std::fs::read_to_string(&cidfile)
-            .map_err(|e| failed(format!("no cidfile: {e}")))?
-            .trim()
-            .to_string();
+        let cid = std::fs::read_to_string(&cidfile).map_err(|e| failed(format!("no cidfile: {e}")))?.trim().to_string();
 
         let outcome = self.start_and_read(&cid, out_dir, run_id, sha).await;
         if !self.remove(&cid).await {
@@ -299,54 +227,31 @@ impl Sandbox {
         outcome
     }
 
-    async fn start_and_read(
-        &self,
-        cid: &str,
-        out_dir: &Path,
-        run_id: &str,
-        sha: &str,
-    ) -> Result<Outcome, NotaryError> {
+    async fn start_and_read(&self, cid: &str, out_dir: &Path, run_id: &str, sha: &str) -> Result<Outcome, NotaryError> {
         let failed = |why: String| NotaryError::new(Code::SandboxFailed, why);
         engine(self.engine, &["start", cid]).await?;
         let waited = tokio::time::timeout(self.timeout, engine(self.engine, &["wait", cid])).await;
         if waited.is_err() {
             let _ = engine(self.engine, &["kill", cid]).await;
-            return Err(failed(format!(
-                "the acceptance check ran over NOTARY_TEST_TIMEOUT_S={}",
-                self.timeout.as_secs()
-            )));
+            return Err(failed(format!("the acceptance check ran over NOTARY_TEST_TIMEOUT_S={}", self.timeout.as_secs())));
         }
-        let inspect = engine(
-            self.engine,
-            &["inspect", "--format", "{{.State.ExitCode}} {{.Image}}", cid],
-        )
-        .await?;
+        let inspect = engine(self.engine, &["inspect", "--format", "{{.State.ExitCode}} {{.Image}}", cid]).await?;
         let inspected = String::from_utf8_lossy(&inspect.stdout).trim().to_string();
         let (exit, image) = inspected.split_once(' ').unwrap_or_default();
         if image.trim_start_matches("sha256:") != self.image {
-            return Err(failed(format!(
-                "container ran image {image}, not the pinned one"
-            )));
+            return Err(failed(format!("container ran image {image}, not the pinned one")));
         }
         if exit != "0" {
             return Err(failed(format!("the wrapper itself exited {exit}")));
         }
-        let logs = engine(self.engine, &["logs", cid])
-            .await
-            .map(|o| [o.stdout, o.stderr].concat())
-            .unwrap_or_default();
+        let logs = engine(self.engine, &["logs", cid]).await.map(|o| [o.stdout, o.stderr].concat()).unwrap_or_default();
         let result = read_result(&out_dir.join("result.json"))?;
         if result.protocol != "notary-run/1" || result.run_id != run_id || result.sha != sha {
-            return Err(failed(
-                "result handshake mismatch: the result isn't from this run".into(),
-            ));
+            return Err(failed("result handshake mismatch: the result isn't from this run".into()));
         }
         let c = result.counts;
         if (result.exit_code == 0) != (c.failed + c.errors == 0) && result.exit_code != 5 {
-            return Err(failed(format!(
-                "inconsistent result: exit {} with {} failed, {} errors",
-                result.exit_code, c.failed, c.errors
-            )));
+            return Err(failed(format!("inconsistent result: exit {} with {} failed, {} errors", result.exit_code, c.failed, c.errors)));
         }
         Ok(Outcome {
             run: TestRun {
@@ -367,12 +272,9 @@ impl Sandbox {
 /// Read result.json only if it's a small regular file (a test could leave a symlink there).
 fn read_result(path: &Path) -> Result<RunResult, NotaryError> {
     let failed = |why: String| NotaryError::new(Code::SandboxFailed, why);
-    let meta = std::fs::symlink_metadata(path)
-        .map_err(|_| failed("the run wrote no result.json".into()))?;
+    let meta = std::fs::symlink_metadata(path).map_err(|_| failed("the run wrote no result.json".into()))?;
     if !meta.file_type().is_file() || meta.len() > MAX_RESULT {
-        return Err(failed(
-            "result.json isn't a regular file under 64 KiB".into(),
-        ));
+        return Err(failed("result.json isn't a regular file under 64 KiB".into()));
     }
     let bytes = std::fs::read(path).map_err(|e| failed(e.to_string()))?;
     serde_json::from_slice(&bytes).map_err(|e| failed(format!("result.json: {e}")))
@@ -387,11 +289,5 @@ fn set_private(dir: &Path) {
 }
 
 fn current_id(flag: &str) -> String {
-    std::process::Command::new("id")
-        .arg(flag)
-        .output()
-        .map_or_else(
-            |_| "65534".into(),
-            |o| String::from_utf8_lossy(&o.stdout).trim().to_string(),
-        )
+    std::process::Command::new("id").arg(flag).output().map_or_else(|_| "65534".into(), |o| String::from_utf8_lossy(&o.stdout).trim().to_string())
 }
