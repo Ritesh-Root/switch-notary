@@ -7,3 +7,4 @@ target/
 *.db-shm
 .handoff/
 infra/notary.env
+.notary.pid

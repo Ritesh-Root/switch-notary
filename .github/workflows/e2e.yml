@@ -1,0 +1,17 @@
+name: e2e
+# The whole keyless demo on a clean runner: pinned Switch + Mattermost, the Notary, six scripted scenarios.
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  demo-offline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.99"
+      - uses: Swatinem/rust-cache@v2
+      - run: make demo-offline ENGINE=docker
