@@ -1,0 +1,21 @@
+[package]
+name = "notary"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Agora Notary: a Switch agent that checks agents' claims before people see them"
+
+[dependencies]
+notary-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+rusqlite.workspace = true
+tokio.workspace = true
+reqwest.workspace = true
+tokio-tungstenite.workspace = true
+futures-util.workspace = true
+
+[lints]
+workspace = true

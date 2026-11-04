@@ -1,0 +1,37 @@
+[workspace]
+resolver = "3"
+members = ["crates/notary-core", "crates/notary"]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.99"
+license = "MIT"
+repository = "https://github.com/Ritesh-Root/agora-notary"
+
+[workspace.dependencies]
+notary-core = { path = "crates/notary-core" }
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.154"
+sha2 = "=0.11.1"
+ed25519-dalek = "=3.0.0"
+getrandom = { version = "=0.4.3", features = ["std"] }
+rusqlite = { version = "=0.41.0", features = ["bundled"] }
+tokio = { version = "=1.54.1", features = ["rt-multi-thread", "macros", "sync", "time", "process", "signal"] }
+reqwest = { version = "=0.13.5", default-features = false, features = ["rustls", "json", "multipart", "cookies"] }
+tokio-tungstenite = { version = "=0.30.0", default-features = false, features = ["connect", "handshake"] }
+futures-util = { version = "=0.3.34", default-features = false, features = ["std", "sink"] }
+proptest = "=1.12.0"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+unwrap_used = "warn"
+dbg_macro = "deny"
+todo = "warn"
+module_name_repetitions = "allow"
+
+[profile.dev.package."*"]
+opt-level = 1

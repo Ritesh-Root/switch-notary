@@ -1,0 +1,8 @@
+infra/.env
+infra/compose.yml
+infra/compose.yml.orig
+target/
+*.db
+*.db-wal
+*.db-shm
+.handoff/
