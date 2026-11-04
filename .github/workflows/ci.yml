@@ -19,6 +19,7 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test
       - run: make verify-sample
+      - run: python3 -I scripts/console-template.py --check
       - name: a one-byte edit to the sample receipt fails verification
         run: |
           sed '0,/priya/s//priyb/' samples/receipt-wo-7.json > /tmp/tampered.json
