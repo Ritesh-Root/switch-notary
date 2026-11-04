@@ -44,17 +44,28 @@ pub fn verify(bundle: &Bundle, pinned_key: Option<&str>) -> Result<Verified, Str
         let kind = RecordKind::of_id(id).ok_or_else(|| format!("{id} isn't a record id"))?;
         let bytes = ids::canonical(value).map_err(|e| format!("{id}: {e}"))?;
         if format!("{}_{}", kind.prefix(), ids::sha_hex(&bytes)) != *id {
-            return Err(format!("record {id} was changed: it no longer hashes to its id"));
+            return Err(format!(
+                "record {id} was changed: it no longer hashes to its id"
+            ));
         }
     }
     for e in &bundle.entries {
         if !bundle.records.contains_key(&e.record) {
-            return Err(format!("entry {} names record {} which isn't in the receipt", e.seq, e.record));
+            return Err(format!(
+                "entry {} names record {} which isn't in the receipt",
+                e.seq, e.record
+            ));
         }
     }
-    let n = verify_head(&bundle.head.run, &bundle.entries, &bundle.head.head).map_err(|b| format!("chain broken at entry {}: {}", b.seq, b.reason))?;
-    if n != bundle.head.entries || bundle.entries.last().map(|e| e.hash.as_str()) != Some(bundle.head.head.as_str()) {
-        return Err(format!("the signed head covers {} entries but the receipt holds {n}", bundle.head.entries));
+    let n = verify_head(&bundle.head.run, &bundle.entries, &bundle.head.head)
+        .map_err(|b| format!("chain broken at entry {}: {}", b.seq, b.reason))?;
+    if n != bundle.head.entries
+        || bundle.entries.last().map(|e| e.hash.as_str()) != Some(bundle.head.head.as_str())
+    {
+        return Err(format!(
+            "the signed head covers {} entries but the receipt holds {n}",
+            bundle.head.entries
+        ));
     }
     bundle.head.verify()?;
     if let Some(k) = pinned_key
@@ -62,7 +73,12 @@ pub fn verify(bundle: &Bundle, pinned_key: Option<&str>) -> Result<Verified, Str
     {
         return Err("signed by a different key than the one you pinned".into());
     }
-    Ok(Verified { run: bundle.head.run.clone(), entries: n, head: bundle.head.head.clone(), key: bundle.head.key.clone() })
+    Ok(Verified {
+        run: bundle.head.run.clone(),
+        entries: n,
+        head: bundle.head.head.clone(),
+        key: bundle.head.key.clone(),
+    })
 }
 
 #[cfg(test)]
@@ -77,12 +93,26 @@ mod tests {
         for v in [json!({"approvers": ["priya"]}), json!({"x": 1})] {
             ledger.append("WO-17", RecordKind::Evidence, &v).unwrap();
         }
-        ledger.append("WO-17", RecordKind::Decision, &json!({"answer": "approve", "by": "priya"})).unwrap();
+        ledger
+            .append(
+                "WO-17",
+                RecordKind::Decision,
+                &json!({"answer": "approve", "by": "priya"}),
+            )
+            .unwrap();
         let (entries, records) = ledger.export("WO-17").unwrap();
         let signer = Signer::ephemeral();
         let last = entries.last().unwrap();
         let head = signer.sign("WO-17", entries.len(), &last.hash, last.at_ms);
-        (Bundle { protocol: PROTOCOL.into(), head, entries, records }, signer)
+        (
+            Bundle {
+                protocol: PROTOCOL.into(),
+                head,
+                entries,
+                records,
+            },
+            signer,
+        )
     }
 
     #[test]
@@ -107,6 +137,10 @@ mod tests {
         b.entries.pop();
         assert!(verify(&b, None).is_err());
         let (b, _) = bundle();
-        assert!(verify(&b, Some(&Signer::ephemeral().public_hex())).unwrap_err().contains("different key"));
+        assert!(
+            verify(&b, Some(&Signer::ephemeral().public_hex()))
+                .unwrap_err()
+                .contains("different key")
+        );
     }
 }

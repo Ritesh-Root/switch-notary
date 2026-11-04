@@ -6,3 +6,4 @@ target/
 *.db-wal
 *.db-shm
 .handoff/
+infra/notary.env

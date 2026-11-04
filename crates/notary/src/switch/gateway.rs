@@ -25,6 +25,8 @@ pub struct ActivityRow {
     pub status: String,
     #[serde(default)]
     pub title: String,
+    #[serde(default)]
+    pub occurred_at: String,
 }
 
 pub struct Gateway {
@@ -44,14 +46,31 @@ impl Gateway {
             .timeout(std::time::Duration::from_secs(30))
             .build()
             .expect("an HTTP client with a cookie store always builds");
-        Self { base: base.trim_end_matches('/').to_string(), http, email: email.to_string(), password: password.to_string() }
+        Self {
+            base: base.trim_end_matches('/').to_string(),
+            http,
+            email: email.to_string(),
+            password: password.to_string(),
+        }
     }
 
     /// # Errors
     /// Wrong credentials or Switch unreachable.
     pub async fn login(&self) -> Result<()> {
-        let resp = self.http.post(format!("{}/gateway/auth/login", self.base)).json(&json!({"email": self.email, "password": self.password})).send().await?;
-        if resp.status().is_success() { Ok(()) } else { Err(SwitchError { status: Some(resp.status().as_u16()), detail: "gateway login refused".into() }) }
+        let resp = self
+            .http
+            .post(format!("{}/gateway/auth/login", self.base))
+            .json(&json!({"email": self.email, "password": self.password}))
+            .send()
+            .await?;
+        if resp.status().is_success() {
+            Ok(())
+        } else {
+            Err(SwitchError {
+                status: Some(resp.status().as_u16()),
+                detail: "gateway login refused".into(),
+            })
+        }
     }
 
     /// Activity rows updated in `room` over the last 7 days (no paging in 0.31.0).
@@ -61,18 +80,31 @@ impl Gateway {
     /// 403 if the gateway user's member client isn't in the room (scripts/install.sh adds it).
     pub async fn activity(&self, room: &str) -> Result<Vec<ActivityRow>> {
         for attempt in 0..2 {
-            let resp = self.http.get(format!("{}/gateway/chats/{room}/activity", self.base)).send().await?;
+            let resp = self
+                .http
+                .get(format!("{}/gateway/chats/{room}/activity", self.base))
+                .send()
+                .await?;
             if resp.status().as_u16() == 401 && attempt == 0 {
                 self.login().await?;
                 continue;
             }
             if !resp.status().is_success() {
-                return Err(SwitchError { status: Some(resp.status().as_u16()), detail: "activity read refused".into() });
+                return Err(SwitchError {
+                    status: Some(resp.status().as_u16()),
+                    detail: "activity read refused".into(),
+                });
             }
             let v: serde_json::Value = resp.json().await?;
             let items = v.get("items").cloned().unwrap_or_default();
-            return serde_json::from_value(items).map_err(|e| SwitchError { status: None, detail: format!("unexpected activity shape: {e}") });
+            return serde_json::from_value(items).map_err(|e| SwitchError {
+                status: None,
+                detail: format!("unexpected activity shape: {e}"),
+            });
         }
-        Err(SwitchError { status: Some(401), detail: "gateway session expired twice".into() })
+        Err(SwitchError {
+            status: Some(401),
+            detail: "gateway session expired twice".into(),
+        })
     }
 }

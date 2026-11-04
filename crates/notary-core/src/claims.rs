@@ -124,7 +124,13 @@ impl Report {
     /// The branch named by the report's `commit_pushed` claim, if any.
     #[must_use]
     pub fn branch(&self) -> Option<&str> {
-        self.claims.iter().find_map(|c| if let Claim::CommitPushed { branch, .. } = c { Some(branch.as_str()) } else { None })
+        self.claims.iter().find_map(|c| {
+            if let Claim::CommitPushed { branch, .. } = c {
+                Some(branch.as_str())
+            } else {
+                None
+            }
+        })
     }
 }
 
@@ -162,7 +168,8 @@ pub fn is_repo_path(p: &str) -> bool {
         && !p.starts_with('/')
         && !p.contains('\\')
         && !p.contains(['*', '?', '[', '\n', '\0'])
-        && p.split('/').all(|seg| !seg.is_empty() && seg != ".." && seg != ".")
+        && p.split('/')
+            .all(|seg| !seg.is_empty() && seg != ".." && seg != ".")
 }
 
 /// Parse the one claims block in `message`, strictly.
@@ -175,9 +182,19 @@ pub fn parse(message: &str) -> Result<Report, NotaryError> {
     }
     let blocks = fenced_blocks(message, "notary-claims");
     let block = match blocks.as_slice() {
-        [] => return Err(NotaryError::new(Code::BlockMissing, "no notary-claims block")),
+        [] => {
+            return Err(NotaryError::new(
+                Code::BlockMissing,
+                "no notary-claims block",
+            ));
+        }
         [one] => *one,
-        _ => return Err(invalid(format!("{} notary-claims blocks; send exactly one", blocks.len()))),
+        _ => {
+            return Err(invalid(format!(
+                "{} notary-claims blocks; send exactly one",
+                blocks.len()
+            )));
+        }
     };
     if block.len() > MAX_BLOCK {
         return Err(invalid("the block is over 16 KiB"));
@@ -196,9 +213,13 @@ pub fn parse(message: &str) -> Result<Report, NotaryError> {
     let mut branches = 0;
     for c in &report.claims {
         let id = c.id();
-        let numeric = id.strip_prefix('c').is_some_and(|n| (1..=3).contains(&n.len()) && n.bytes().all(|b| b.is_ascii_digit()));
+        let numeric = id
+            .strip_prefix('c')
+            .is_some_and(|n| (1..=3).contains(&n.len()) && n.bytes().all(|b| b.is_ascii_digit()));
         if !numeric || !seen.insert(id.to_string()) {
-            return Err(invalid(format!("claim id {id:?} must be unique and look like c1..c999")));
+            return Err(invalid(format!(
+                "claim id {id:?} must be unique and look like c1..c999"
+            )));
         }
         if let Some(bad) = c.cites().iter().find(|e| !ids::is_id("ev", e)) {
             return Err(invalid(format!("{id}: {bad:?} isn't an ev_ id")));
@@ -207,22 +228,41 @@ pub fn parse(message: &str) -> Result<Report, NotaryError> {
             Claim::CommitPushed { branch, sha, .. } => {
                 branches += 1;
                 if sha != &report.sha {
-                    return Err(invalid(format!("{id}: its sha must equal the report's sha")));
+                    return Err(invalid(format!(
+                        "{id}: its sha must equal the report's sha"
+                    )));
                 }
-                if branch.is_empty() || branch.len() > 200 || branch.starts_with('-') || branch.contains(['\0', ' ', '\n', '~', '^', ':', '\\']) || branch.contains("..") {
-                    return Err(invalid(format!("{id}: {branch:?} isn't a plain branch name")));
+                if branch.is_empty()
+                    || branch.len() > 200
+                    || branch.starts_with('-')
+                    || branch.contains(['\0', ' ', '\n', '~', '^', ':', '\\'])
+                    || branch.contains("..")
+                {
+                    return Err(invalid(format!(
+                        "{id}: {branch:?} isn't a plain branch name"
+                    )));
                 }
             }
-            Claim::ReviewedDiff { sha, .. } if sha != &report.sha => return Err(invalid(format!("{id}: its sha must equal the report's sha"))),
-            Claim::FilesChanged { paths, .. } | Claim::TestsPassed { paths, .. } if paths.len() > MAX_PATHS || paths.iter().any(|p| !is_repo_path(p)) => {
-                return Err(invalid(format!("{id}: paths must be plain relative repository paths, at most 200")));
+            Claim::ReviewedDiff { sha, .. } if sha != &report.sha => {
+                return Err(invalid(format!(
+                    "{id}: its sha must equal the report's sha"
+                )));
+            }
+            Claim::FilesChanged { paths, .. } | Claim::TestsPassed { paths, .. }
+                if paths.len() > MAX_PATHS || paths.iter().any(|p| !is_repo_path(p)) =>
+            {
+                return Err(invalid(format!(
+                    "{id}: paths must be plain relative repository paths, at most 200"
+                )));
             }
             _ => {}
         }
         if let Claim::TestsPassed { command, .. } | Claim::CheckRan { command, .. } = c
             && (command.is_empty() || command.len() > 500)
         {
-            return Err(invalid(format!("{id}: command must be 1 to 500 characters")));
+            return Err(invalid(format!(
+                "{id}: command must be 1 to 500 characters"
+            )));
         }
     }
     if branches > 1 {
@@ -261,7 +301,10 @@ mod tests {
 
     #[test]
     fn missing_and_doubled_blocks_are_refused() {
-        assert_eq!(parse("all done, tests pass").unwrap_err().code, Code::BlockMissing);
+        assert_eq!(
+            parse("all done, tests pass").unwrap_err().code,
+            Code::BlockMissing
+        );
         let two = format!("{}\n{}", message(&good()), message(&good()));
         assert_eq!(parse(&two).unwrap_err().code, Code::BlockInvalid);
     }
@@ -270,15 +313,25 @@ mod tests {
     fn unknown_fields_bad_ids_and_short_shas_are_refused() {
         for bad in [
             good().replace(r#""wo":"WO-17""#, r#""wo":"WO-17","extra":1"#),
-            good().replace(r#""command":"pytest -q","outcome""#, r#""command":"pytest -q","why":"x","outcome""#),
+            good().replace(
+                r#""command":"pytest -q","outcome""#,
+                r#""command":"pytest -q","why":"x","outcome""#,
+            ),
             good().replace(r#""id":"c2""#, r#""id":"c1""#),
             good().replace(r#""id":"c2""#, r#""id":"claim2""#),
-            good().replace(&format!(r#""sha":"{SHA}","claims""#), r#""sha":"3f9a2c1","claims""#),
+            good().replace(
+                &format!(r#""sha":"{SHA}","claims""#),
+                r#""sha":"3f9a2c1","claims""#,
+            ),
             good().replace("src/invoices/tax.py", "../etc/passwd"),
             good().replace("src/invoices/tax.py", "src/**"),
             good().replace(r#""kind":"files_changed""#, r#""kind":"deployed""#),
         ] {
-            assert_eq!(parse(&message(&bad)).unwrap_err().code, Code::BlockInvalid, "{bad}");
+            assert_eq!(
+                parse(&message(&bad)).unwrap_err().code,
+                Code::BlockInvalid,
+                "{bad}"
+            );
         }
     }
 
@@ -290,10 +343,19 @@ mod tests {
 
     #[test]
     fn citations_must_look_like_evidence_ids() {
-        let cited = good().replace(r#""outcome":"passed""#, &format!(r#""outcome":"passed","cites":["ev_{}"]"#, "a".repeat(64)));
+        let cited = good().replace(
+            r#""outcome":"passed""#,
+            &format!(r#""outcome":"passed","cites":["ev_{}"]"#, "a".repeat(64)),
+        );
         assert!(parse(&message(&cited)).is_ok());
-        let bogus = good().replace(r#""outcome":"passed""#, r#""outcome":"passed","cites":["trust me"]"#);
-        assert_eq!(parse(&message(&bogus)).unwrap_err().code, Code::BlockInvalid);
+        let bogus = good().replace(
+            r#""outcome":"passed""#,
+            r#""outcome":"passed","cites":["trust me"]"#,
+        );
+        assert_eq!(
+            parse(&message(&bogus)).unwrap_err().code,
+            Code::BlockInvalid
+        );
     }
 
     #[test]

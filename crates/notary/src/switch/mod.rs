@@ -29,7 +29,10 @@ impl std::error::Error for SwitchError {}
 
 impl From<reqwest::Error> for SwitchError {
     fn from(e: reqwest::Error) -> Self {
-        Self { status: e.status().map(|s| s.as_u16()), detail: e.without_url().to_string() }
+        Self {
+            status: e.status().map(|s| s.as_u16()),
+            detail: e.without_url().to_string(),
+        }
     }
 }
 
@@ -46,7 +49,10 @@ pub struct Agent {
 
 impl std::fmt::Debug for Agent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Agent").field("base", &self.base).field("id", &self.id).finish_non_exhaustive()
+        f.debug_struct("Agent")
+            .field("base", &self.base)
+            .field("id", &self.id)
+            .finish_non_exhaustive()
     }
 }
 
@@ -58,7 +64,19 @@ pub struct ApprovalOption {
     pub decision: String,
 }
 
-/// An answered or expired approval card. The HTTP view is camelCase, the frame snake_case.
+/// An approval card to open in `room`. `session` groups a work order's cards.
+pub struct Card<'a> {
+    pub session: &'a str,
+    pub request: &'a str,
+    pub room: &'a str,
+    pub title: &'a str,
+    pub detail: &'a str,
+    pub options: &'a [ApprovalOption],
+    /// ISO-8601, at most 24 hours ahead.
+    pub expires_at: &'a str,
+}
+
+/// An answered or expired approval card. The HTTP view is `camelCase`, the frame `snake_case`.
 #[derive(Debug, Clone, Deserialize)]
 pub struct ApprovalOutcome {
     #[serde(alias = "sessionId")]
@@ -81,7 +99,12 @@ impl Agent {
             .timeout(std::time::Duration::from_secs(30))
             .build()
             .expect("an HTTP client with default settings always builds");
-        Self { base: base.trim_end_matches('/').to_string(), id: id.to_string(), key: key.to_string(), http }
+        Self {
+            base: base.trim_end_matches('/').to_string(),
+            id: id.to_string(),
+            key: key.to_string(),
+            http,
+        }
     }
 
     pub(crate) fn key(&self) -> &str {
@@ -95,11 +118,25 @@ impl Agent {
         if !status.is_success() {
             let detail = serde_json::from_str::<Value>(&text)
                 .ok()
-                .and_then(|v| v.get("detail").or_else(|| v.get("message")).map(Value::to_string))
+                .and_then(|v| {
+                    v.get("detail")
+                        .or_else(|| v.get("message"))
+                        .map(Value::to_string)
+                })
                 .unwrap_or(text);
-            return Err(SwitchError { status: Some(status.as_u16()), detail: clip(&detail, 400) });
+            return Err(SwitchError {
+                status: Some(status.as_u16()),
+                detail: clip(&detail, 400),
+            });
         }
-        if text.is_empty() { Ok(Value::Null) } else { serde_json::from_str(&text).map_err(|e| SwitchError { status: Some(status.as_u16()), detail: e.to_string() }) }
+        if text.is_empty() {
+            Ok(Value::Null)
+        } else {
+            serde_json::from_str(&text).map_err(|e| SwitchError {
+                status: Some(status.as_u16()),
+                detail: e.to_string(),
+            })
+        }
     }
 
     /// Post `content` in `room` as the Notary. `@name` in the content addresses that agent.
@@ -107,7 +144,12 @@ impl Agent {
     /// # Errors
     /// 403 if the Notary isn't in the room, 404 if there is no such room.
     pub async fn post(&self, room: &str, content: &str) -> Result<Value> {
-        self.send(self.http.post(format!("{}/agents/{}/message", self.base, self.id)).json(&json!({"room_id": room, "content": content}))).await
+        self.send(
+            self.http
+                .post(format!("{}/agents/{}/message", self.base, self.id))
+                .json(&json!({"room_id": room, "content": content})),
+        )
+        .await
     }
 
     /// Call operation `name`. Room-bound operations need `connection` (after `connect_to_room`).
@@ -115,7 +157,10 @@ impl Agent {
     /// # Errors
     /// The operation's refusal.
     pub async fn op(&self, name: &str, args: &Value, connection: Option<&str>) -> Result<Value> {
-        let mut req = self.http.post(format!("{}/agents/{}/ops/{name}", self.base, self.id)).json(args);
+        let mut req = self
+            .http
+            .post(format!("{}/agents/{}/ops/{name}", self.base, self.id))
+            .json(args);
         if let Some(c) = connection {
             req = req.header("X-Switch-Connection-Id", c);
         }
@@ -127,27 +172,55 @@ impl Agent {
     ///
     /// # Errors
     /// If the upload is refused (empty, over 20 MiB, not a member).
-    pub async fn upload(&self, room: &str, filename: &str, mime: &str, bytes: Vec<u8>, caption: &str) -> Result<Value> {
+    pub async fn upload(
+        &self,
+        room: &str,
+        filename: &str,
+        mime: &str,
+        bytes: Vec<u8>,
+        caption: &str,
+    ) -> Result<Value> {
         let part = reqwest::multipart::Part::bytes(bytes)
             .file_name(filename.to_string())
             .mime_str(mime)
-            .map_err(|e| SwitchError { status: None, detail: e.to_string() })?;
-        let form = reqwest::multipart::Form::new().part("file", part).text("caption", caption.to_string());
-        self.send(self.http.post(format!("{}/agents/{}/rooms/{room}/media", self.base, self.id)).multipart(form)).await
+            .map_err(|e| SwitchError {
+                status: None,
+                detail: e.to_string(),
+            })?;
+        let form = reqwest::multipart::Form::new()
+            .part("file", part)
+            .text("caption", caption.to_string());
+        self.send(
+            self.http
+                .post(format!(
+                    "{}/agents/{}/rooms/{room}/media",
+                    self.base, self.id
+                ))
+                .multipart(form),
+        )
+        .await
     }
 
-    /// Open an approval card in `room`. Ids are ours (any stable string); retrying the same
-    /// request is idempotent. The Notary must hold a live connection or the card can't be answered.
+    /// Open an approval card. Ids are ours (any stable string); retrying the same request is
+    /// idempotent. The Notary must hold a live connection or the card can't be answered.
     ///
     /// # Errors
     /// 409 if the same ids were used with different content, 403/404 if not a room member.
-    pub async fn open_approval(&self, session: &str, request: &str, room: &str, title: &str, detail: &str, options: &[ApprovalOption], expires_at: &str) -> Result<Value> {
+    pub async fn open_approval(&self, card: &Card<'_>) -> Result<Value> {
         let body = json!({
-            "request_id": request, "turn_id": request, "kind": "approval",
-            "title": clip(title, 500), "detail": clip(detail, 4000), "options": options,
-            "questions": [], "room_id": room, "thread_id": null, "expires_at": expires_at,
+            "request_id": card.request, "turn_id": card.request, "kind": "approval",
+            "title": clip(card.title, 500), "detail": clip(card.detail, 4000), "options": card.options,
+            "questions": [], "room_id": card.room, "thread_id": null, "expires_at": card.expires_at,
         });
-        self.send(self.http.post(format!("{}/agent-sessions/{session}/approvals", self.base)).json(&body)).await
+        self.send(
+            self.http
+                .post(format!(
+                    "{}/agent-sessions/{}/approvals",
+                    self.base, card.session
+                ))
+                .json(&body),
+        )
+        .await
     }
 
     /// Answered or expired cards not yet acknowledged, oldest first.
@@ -155,9 +228,17 @@ impl Agent {
     /// # Errors
     /// If Switch can't be read.
     pub async fn outcomes(&self) -> Result<Vec<ApprovalOutcome>> {
-        let v = self.send(self.http.get(format!("{}/agent-sessions/approvals/outcomes", self.base))).await?;
+        let v = self
+            .send(
+                self.http
+                    .get(format!("{}/agent-sessions/approvals/outcomes", self.base)),
+            )
+            .await?;
         let list = v.get("outcomes").cloned().unwrap_or(v);
-        serde_json::from_value(list).map_err(|e| SwitchError { status: None, detail: format!("unexpected outcomes shape: {e}") })
+        serde_json::from_value(list).map_err(|e| SwitchError {
+            status: None,
+            detail: format!("unexpected outcomes shape: {e}"),
+        })
     }
 
     /// Acknowledge an outcome so it isn't delivered again.
@@ -165,7 +246,11 @@ impl Agent {
     /// # Errors
     /// 409 while the request is still open.
     pub async fn delivered(&self, session: &str, request: &str) -> Result<Value> {
-        self.send(self.http.post(format!("{}/agent-sessions/{session}/approvals/{request}/delivered", self.base))).await
+        self.send(self.http.post(format!(
+            "{}/agent-sessions/{session}/approvals/{request}/delivered",
+            self.base
+        )))
+        .await
     }
 
     /// Who is in `room`: `[{type, agent_id, name, status}]`.
@@ -173,7 +258,11 @@ impl Agent {
     /// # Errors
     /// If Switch can't be read.
     pub async fn participants(&self, room: &str) -> Result<Value> {
-        self.send(self.http.get(format!("{}/agents/rooms/{room}/participants", self.base))).await
+        self.send(
+            self.http
+                .get(format!("{}/agents/rooms/{room}/participants", self.base)),
+        )
+        .await
     }
 }
 

@@ -17,10 +17,12 @@ use crate::errors::{Code, NotaryError};
 
 #[must_use]
 pub fn sha_hex(bytes: &[u8]) -> String {
-    Sha256::digest(bytes).iter().fold(String::with_capacity(64), |mut hex, b| {
-        let _ = write!(hex, "{b:02x}");
-        hex
-    })
+    Sha256::digest(bytes)
+        .iter()
+        .fold(String::with_capacity(64), |mut hex, b| {
+            let _ = write!(hex, "{b:02x}");
+            hex
+        })
 }
 
 /// The canonical bytes of `v`.
@@ -28,9 +30,13 @@ pub fn sha_hex(bytes: &[u8]) -> String {
 /// # Errors
 /// `integrity_mismatch` if `v` holds a float or an integer JSON can't carry exactly.
 pub fn canonical<T: Serialize>(v: &T) -> Result<Vec<u8>, NotaryError> {
-    let v = serde_json::to_value(v).map_err(|e| NotaryError::new(Code::IntegrityMismatch, e.to_string()))?;
+    let v = serde_json::to_value(v)
+        .map_err(|e| NotaryError::new(Code::IntegrityMismatch, e.to_string()))?;
     if !plain_numbers(&v) {
-        return Err(NotaryError::new(Code::IntegrityMismatch, "floats and integers above 2^53 have no canonical form"));
+        return Err(NotaryError::new(
+            Code::IntegrityMismatch,
+            "floats and integers above 2^53 have no canonical form",
+        ));
     }
     serde_json::to_vec(&v).map_err(|e| NotaryError::new(Code::IntegrityMismatch, e.to_string()))
 }
@@ -38,7 +44,10 @@ pub fn canonical<T: Serialize>(v: &T) -> Result<Vec<u8>, NotaryError> {
 fn plain_numbers(v: &Value) -> bool {
     const MAX: u64 = 1 << 53;
     match v {
-        Value::Number(n) => n.as_u64().is_some_and(|x| x <= MAX) || n.as_i64().is_some_and(|x| x.unsigned_abs() <= MAX),
+        Value::Number(n) => {
+            n.as_u64().is_some_and(|x| x <= MAX)
+                || n.as_i64().is_some_and(|x| x.unsigned_abs() <= MAX)
+        }
         Value::Array(a) => a.iter().all(plain_numbers),
         Value::Object(o) => o.values().all(plain_numbers),
         _ => true,
@@ -56,13 +65,21 @@ pub fn content_id<T: Serialize>(prefix: &str, v: &T) -> Result<String, NotaryErr
 /// Whether `s` is `prefix_` followed by 64 lowercase hex digits.
 #[must_use]
 pub fn is_id(prefix: &str, s: &str) -> bool {
-    s.strip_prefix(prefix).and_then(|r| r.strip_prefix('_')).is_some_and(|h| h.len() == 64 && h.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)))
+    s.strip_prefix(prefix)
+        .and_then(|r| r.strip_prefix('_'))
+        .is_some_and(|h| {
+            h.len() == 64
+                && h.bytes()
+                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        })
 }
 
 /// Whether `s` is a full git commit id (40 lowercase hex). Short ids are ambiguous, so refused.
 #[must_use]
 pub fn is_sha(s: &str) -> bool {
-    s.len() == 40 && s.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+    s.len() == 40
+        && s.bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
 #[cfg(test)]
@@ -72,7 +89,10 @@ mod tests {
 
     #[test]
     fn keys_are_sorted_and_output_is_compact() {
-        assert_eq!(canonical(&json!({"b": 1, "a": [2, {"d": 3, "c": "x"}]})).unwrap(), br#"{"a":[2,{"c":"x","d":3}],"b":1}"#);
+        assert_eq!(
+            canonical(&json!({"b": 1, "a": [2, {"d": 3, "c": "x"}]})).unwrap(),
+            br#"{"a":[2,{"c":"x","d":3}],"b":1}"#
+        );
     }
 
     #[test]

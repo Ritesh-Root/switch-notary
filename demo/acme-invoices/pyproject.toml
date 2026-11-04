@@ -1,0 +1,9 @@
+[project]
+name = "acme-invoices"
+version = "0.3.0"
+description = "Acme's invoicing: tax and monthly reports"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
