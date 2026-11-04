@@ -184,6 +184,14 @@ impl Agent {
         self.send(self.http.post(format!("{}/agent-sessions/{session}/approvals/{request}/delivered", self.base))).await
     }
 
+    /// The last `limit` messages in `room`, oldest first: `{events:[{sender, sender_name, body, timestamp}], has_more}`.
+    ///
+    /// # Errors
+    /// 403 if the Notary isn't in the room.
+    pub async fn history(&self, room: &str, limit: u32) -> Result<Value> {
+        self.send(self.http.get(format!("{}/agents/{}/rooms/{room}/history?limit={limit}", self.base, self.id))).await
+    }
+
     /// Who is in `room`: `[{type, agent_id, name, status}]`.
     ///
     /// # Errors

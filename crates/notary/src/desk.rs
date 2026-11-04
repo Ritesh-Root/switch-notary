@@ -340,7 +340,7 @@ impl Desk {
         };
         let hub = &self.cfg.hub_room;
         if let Some(w) = self.find_wo("wo = ?1", &target.to_uppercase()) {
-            let lines = self.ledger_lines(&w.wo);
+            let lines = ledger_lines(&self.ledger, &w.wo);
             return self.say(hub, &render::page(&format!("{} ledger", w.wo), &lines, page)).await;
         }
         if target.len() >= 11 && target.contains('_') {
@@ -372,41 +372,6 @@ impl Desk {
             return self.say(hub, &text).await;
         }
         self.say(hub, "Usage: `show WO-1 [page N]` or `show ev_<at least 8 hex>`.").await;
-    }
-
-    fn ledger_lines(&self, wo: &str) -> Vec<String> {
-        let entries = self.ledger.entries(wo).unwrap_or_default();
-        entries
-            .iter()
-            .map(|e| {
-                let v = self.ledger.record(&e.record).ok().flatten().unwrap_or_default();
-                let what = match e.kind {
-                    RecordKind::Evidence => format!(
-                        "{} by {}: {}",
-                        v["operation"].as_str().unwrap_or("?"),
-                        v["authority"].as_str().unwrap_or("?"),
-                        clip(&v["result"].to_string(), 90)
-                    ),
-                    RecordKind::Audit => {
-                        let codes: Vec<String> = v["checked"]
-                            .as_array()
-                            .into_iter()
-                            .flatten()
-                            .map(|c| format!("{}:{}", c["claim"].as_str().unwrap_or("?"), c["code"].as_str().unwrap_or("backed")))
-                            .collect();
-                        format!("audit of {} report {}: {}", v["agent"].as_str().unwrap_or("?"), v["attempt"], codes.join(" "))
-                    }
-                    RecordKind::Decision => format!("decision: {} by {}", v["answer"].as_str().unwrap_or("?"), v["by"].as_str().unwrap_or("?")),
-                    RecordKind::Report => format!(
-                        "claims from {}: {} claim(s)",
-                        v["agent"].as_str().unwrap_or("?"),
-                        v["report"]["claims"].as_array().map_or(0, Vec::len)
-                    ),
-                    RecordKind::Policy => "intake + Desk Policy".to_string(),
-                };
-                format!("{}. `{}` {what}", e.seq, &e.record[..14.min(e.record.len())])
-            })
-            .collect()
     }
 
     // ---------- reports ----------
@@ -805,6 +770,40 @@ impl Desk {
         )
         .await;
     }
+}
+
+/// One line per ledger entry of `wo`, for `show` and the viewer.
+pub(crate) fn ledger_lines(ledger: &Ledger, wo: &str) -> Vec<String> {
+    let entries = ledger.entries(wo).unwrap_or_default();
+    entries
+        .iter()
+        .map(|e| {
+            let v = ledger.record(&e.record).ok().flatten().unwrap_or_default();
+            let what = match e.kind {
+                RecordKind::Evidence => format!(
+                    "{} by {}: {}",
+                    v["operation"].as_str().unwrap_or("?"),
+                    v["authority"].as_str().unwrap_or("?"),
+                    clip(&v["result"].to_string(), 90)
+                ),
+                RecordKind::Audit => {
+                    let codes: Vec<String> = v["checked"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .map(|c| format!("{}:{}", c["claim"].as_str().unwrap_or("?"), c["code"].as_str().unwrap_or("backed")))
+                        .collect();
+                    format!("audit of {} report {}: {}", v["agent"].as_str().unwrap_or("?"), v["attempt"], codes.join(" "))
+                }
+                RecordKind::Decision => format!("decision: {} by {}", v["answer"].as_str().unwrap_or("?"), v["by"].as_str().unwrap_or("?")),
+                RecordKind::Report => {
+                    format!("claims from {}: {} claim(s)", v["agent"].as_str().unwrap_or("?"), v["report"]["claims"].as_array().map_or(0, Vec::len))
+                }
+                RecordKind::Policy => "intake + Desk Policy".to_string(),
+            };
+            format!("{}. `{}` {what}", e.seq, &e.record[..14.min(e.record.len())])
+        })
+        .collect()
 }
 
 /// The latest revision of each tool call this agent made since `since_ms` (the work order opened), oldest first.

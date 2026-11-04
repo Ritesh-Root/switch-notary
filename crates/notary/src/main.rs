@@ -8,6 +8,7 @@ mod desk;
 mod git;
 mod sandbox;
 mod switch;
+mod viewer;
 
 use std::path::{Path, PathBuf};
 
@@ -59,8 +60,12 @@ async fn run() -> Result<(), NotaryError> {
     std::fs::create_dir_all(&cfg.state_dir).map_err(|e| NotaryError::new(Code::ConfigurationInvalid, e.to_string()))?;
     let agent = load_agent(&cfg)?;
     let connection = connection_id(&cfg.state_dir);
+    let view = cfg.view_addr.map(|addr| (addr, cfg.hub_room.clone(), cfg.work_room.clone(), cfg.data_dir.clone()));
     let mut desk = desk::Desk::open(cfg, agent.clone(), connection.clone())?;
     eprintln!("notary: running as agent {} (signing key {})", agent.id, desk.public_key());
+    if let Some((addr, hub, work, data_dir)) = view {
+        viewer::spawn(addr, viewer::View { agent: agent.clone(), hub, work, data_dir, key: desk.public_key() });
+    }
     let mut events = switch::ws::spawn(agent.clone(), connection);
     while let Some(event) = events.recv().await {
         match event {

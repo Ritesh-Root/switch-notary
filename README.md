@@ -96,8 +96,10 @@ This does the following:
 | fabricated citation | cites a made-up `ev_…` id | `citation_unknown` → bounce |
 | lazy reviewer | "LGTM, ran the suite" with nothing on record | **unverified** `no_activity_row`, flagged on the card, never called a lie |
 
-Open http://localhost:8065 (team `switch`) to watch it. Logins are in `infra/.env` (`MATTERMOST_USER_PASSWORD`,
-`DEMO_PASSWORD_PRIYA`, `DEMO_PASSWORD_SAM`).
+**Watch it at http://localhost:8090.** That's the Notary's read-only viewer, with no login: both rooms
+live (read from Switch), the work orders, each one's ledger, and every receipt checked the same way
+`agora-verify` checks it. To act in chat yourself, Mattermost is at http://localhost:8065 (team `switch`);
+the logins are in `infra/.env` (`MATTERMOST_USER_PASSWORD`, `DEMO_PASSWORD_PRIYA`, `DEMO_PASSWORD_SAM`).
 
 ### 3. Live: Claude Code builds, OpenCode reviews
 
@@ -148,7 +150,8 @@ head is signed with Ed25519 and posted into the desk, and the bundle is uploaded
 
 ```
 crates/notary-core   evidence, claims parser, judge, ledger, signing, receipts, renderer, agora-verify (41 tests)
-crates/notary        the agent: Switch client (WebSocket + HTTP), git mirror, podman/docker sandbox, desk state machine
+crates/notary        the agent: Switch client (WebSocket + HTTP), git mirror, podman/docker sandbox, desk state machine,
+                     read-only viewer on 127.0.0.1:8090 (NOTARY_VIEW_ADDR=off to disable)
 templates/           the Switch rooms template (Desk Policy + Reporting Contract)
 sandbox/             the test sandbox image (python:3.12-slim + pytest 9.2.0) and its result handshake
 scripts/             up, register, install, add-users, seed-demo, sandbox-image (every path quoted)

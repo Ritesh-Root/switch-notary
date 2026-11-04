@@ -1,0 +1,142 @@
+//! A read-only window onto the desk, with no login: both rooms' messages (read through Switch's
+//! history API with the Notary's own key), the work orders, each work order's ledger, and the
+//! receipts, each checked with the same code as `agora-verify`. It binds to localhost only and
+//! changes nothing; acting still happens in chat.
+
+use std::net::SocketAddr;
+use std::path::PathBuf;
+use std::sync::Arc;
+
+use axum::extract::{Path, State};
+use axum::http::{StatusCode, header};
+use axum::response::{Html, IntoResponse, Response};
+use axum::routing::get;
+use axum::{Json, Router};
+use notary_core::ledger::Ledger;
+use notary_core::receipt::{self, Bundle};
+use rusqlite::{Connection, OpenFlags};
+use serde_json::{Value, json};
+
+use crate::switch::Agent;
+
+const PAGE: &str = include_str!("viewer.html");
+
+pub struct View {
+    pub agent: Agent,
+    pub hub: String,
+    pub work: String,
+    pub data_dir: PathBuf,
+    pub key: String,
+}
+
+/// Serve the viewer on `addr` until the process exits.
+pub fn spawn(addr: SocketAddr, view: View) {
+    let app = Router::new()
+        .route("/", get(|| async { Html(PAGE) }))
+        .route("/api/state", get(state))
+        .route("/api/ledger/{wo}", get(ledger))
+        .route("/receipts/{file}", get(receipt_file))
+        .with_state(Arc::new(view));
+    tokio::spawn(async move {
+        match tokio::net::TcpListener::bind(addr).await {
+            Ok(listener) => {
+                eprintln!("notary: viewer at http://{addr}");
+                if let Err(e) = axum::serve(listener, app).await {
+                    eprintln!("notary: viewer stopped: {e}");
+                }
+            }
+            Err(e) => eprintln!("notary: viewer couldn't bind {addr}: {e}"),
+        }
+    });
+}
+
+async fn messages(view: &View, room: &str) -> Value {
+    match view.agent.history(room, 120).await {
+        Ok(v) => v.get("events").cloned().unwrap_or_default(),
+        Err(e) => json!([{"sender_name": "viewer", "body": format!("couldn't read this room from Switch: {e}"), "timestamp": null}]),
+    }
+}
+
+fn work_orders(view: &View) -> Value {
+    let Ok(db) = Connection::open_with_flags(view.data_dir.join("desk.db"), OpenFlags::SQLITE_OPEN_READ_ONLY) else { return json!([]) };
+    let Ok(mut stmt) = db.prepare("SELECT wo, title, requester, state, attempts FROM work_orders WHERE wo IS NOT NULL ORDER BY n DESC LIMIT 50")
+    else {
+        return json!([]);
+    };
+    let rows = stmt.query_map([], |r| {
+        Ok(json!({"wo": r.get::<_, String>(0)?, "title": r.get::<_, String>(1)?, "requester": r.get::<_, String>(2)?,
+                  "state": r.get::<_, String>(3)?, "attempts": r.get::<_, i64>(4)?}))
+    });
+    rows.map(|r| Value::Array(r.flatten().collect())).unwrap_or_default()
+}
+
+fn receipts(view: &View) -> Value {
+    let dir = view.data_dir.join("receipts");
+    let mut out = Vec::new();
+    for entry in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if !valid_receipt_name(&name) {
+            continue;
+        }
+        let checked = std::fs::read(entry.path())
+            .map_err(|e| e.to_string())
+            .and_then(|b| serde_json::from_slice::<Bundle>(&b).map_err(|e| e.to_string()))
+            .and_then(|b| receipt::verify(&b, Some(&view.key)));
+        out.push(match checked {
+            Ok(v) => json!({"file": name, "wo": v.run, "ok": true, "entries": v.entries, "head": v.head}),
+            Err(why) => json!({"file": name, "ok": false, "why": why}),
+        });
+    }
+    out.sort_by_key(|r| {
+        std::cmp::Reverse(r["file"].as_str().and_then(|f| f.trim_start_matches("receipt-wo-").trim_end_matches(".json").parse::<u64>().ok()))
+    });
+    Value::Array(out)
+}
+
+async fn state(State(view): State<Arc<View>>) -> Json<Value> {
+    let (desk, work) = tokio::join!(messages(&view, &view.hub), messages(&view, &view.work));
+    Json(json!({"desk": desk, "work": work, "work_orders": work_orders(&view), "receipts": receipts(&view), "key": view.key}))
+}
+
+async fn ledger(State(view): State<Arc<View>>, Path(wo): Path<String>) -> Response {
+    let wo = wo.to_uppercase();
+    if !wo.strip_prefix("WO-").is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit())) {
+        return (StatusCode::BAD_REQUEST, "not a work order").into_response();
+    }
+    match Ledger::open(&view.data_dir.join("ledger.db")) {
+        Ok(l) => {
+            let verified = l.verify(&wo).map_err(|b| format!("broken at entry {}: {}", b.seq, b.reason));
+            Json(json!({"wo": wo, "lines": crate::desk::ledger_lines(&l, &wo), "chain": verified.map_or_else(|e| e, |n| format!("{n} entries, chain intact"))}))
+                .into_response()
+        }
+        Err(e) => (StatusCode::SERVICE_UNAVAILABLE, e.to_string()).into_response(),
+    }
+}
+
+fn valid_receipt_name(name: &str) -> bool {
+    name.strip_prefix("receipt-wo-").and_then(|r| r.strip_suffix(".json")).is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
+}
+
+async fn receipt_file(State(view): State<Arc<View>>, Path(file): Path<String>) -> Response {
+    if !valid_receipt_name(&file) {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    match std::fs::read(view.data_dir.join("receipts").join(&file)) {
+        Ok(bytes) => {
+            ([(header::CONTENT_TYPE, "application/json"), (header::CONTENT_DISPOSITION, &format!("attachment; filename=\"{file}\""))], bytes)
+                .into_response()
+        }
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn only_receipt_files_are_served() {
+        assert!(super::valid_receipt_name("receipt-wo-7.json"));
+        for bad in ["../ledger.db", "receipt-wo-.json", "receipt-wo-7.json/../../x", "receipt-wo-7.txt", "desk.db"] {
+            assert!(!super::valid_receipt_name(bad), "{bad}");
+        }
+    }
+}

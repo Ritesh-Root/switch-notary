@@ -57,6 +57,7 @@ demo-offline: need-engine up sandbox-image install-offline build
 	scripts/notary.sh doctor
 	@scripts/notary.sh run > "$(NOTARY_LOG)" 2>&1 & echo $$! > .notary.pid; \
 	  for i in $$(seq 1 30); do grep -q "connected to Switch" "$(NOTARY_LOG)" && break; sleep 1; done; \
+	  echo "watch it live: http://localhost:8090 (no login)"; \
 	  python3 -I e2e/scenarios.py; status=$$?; kill $$(cat .notary.pid); rm -f .notary.pid; exit $$status
 
 verify-sample:

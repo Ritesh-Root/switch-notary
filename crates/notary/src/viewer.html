@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agora Notary</title>
+<style>
+:root{--bg:#f6f4ef;--panel:#fffdf9;--ink:#1d1b18;--muted:#6f6a61;--line:#e4dfd5;--accent:#1f5f4a;
+--ok:#1f7a4d;--ok-bg:#e3f3ea;--bad:#b3261e;--bad-bg:#fbe6e4;--warn:#8a5a00;--warn-bg:#fbf0d9;--code:#f0ece4;
+--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--sans:Inter,system-ui,-apple-system,Segoe UI,sans-serif}
+@media (prefers-color-scheme:dark){:root{--bg:#131311;--panel:#1b1a18;--ink:#ece8e0;--muted:#9b958b;--line:#2c2a26;--accent:#6fc3a1;
+--ok:#6fd39f;--ok-bg:#16301f;--bad:#ff8a80;--bad-bg:#3a1a17;--warn:#f2c46a;--warn-bg:#352a13;--code:#24221f}}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 var(--sans)}
+header{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;padding:18px 24px 10px}
+h1{font-size:20px;margin:0;letter-spacing:-.01em}h1 span{color:var(--accent)}
+.sub{color:var(--muted);font-size:13px}.live{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ok);margin-right:6px;animation:p 2s infinite}
+@keyframes p{50%{opacity:.35}}
+main{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 320px;gap:16px;padding:0 24px 24px}
+@media (max-width:1100px){main{grid-template-columns:1fr}}
+@media (max-width:600px){header,main{padding-left:16px;padding-right:16px}}
+section{background:var(--panel);border:1px solid var(--line);border-radius:10px;display:flex;flex-direction:column;min-height:0}
+section h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0;padding:12px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:8px}
+section h2 em{font-style:normal;text-transform:none;letter-spacing:0}
+.feed{overflow:auto;height:calc(100vh - 150px);padding:6px 0}@media (max-width:1100px){.feed{height:60vh}}
+.msg{display:grid;grid-template-columns:30px 1fr;gap:10px;padding:8px 14px}
+.av{width:30px;height:30px;border-radius:7px;display:grid;place-items:center;font-weight:600;font-size:12px;color:#fff;background:#8b8479}
+.av.notary{background:var(--accent)}.av.agent{background:#5b6ea8}
+.who{font-weight:600;font-size:13px}.who small{color:var(--muted);font-weight:400;margin-left:6px}
+.body{white-space:pre-wrap;overflow-wrap:anywhere}.body code{font:12px var(--mono);background:var(--code);padding:1px 4px;border-radius:4px}
+pre{font:12px/1.45 var(--mono);background:var(--code);padding:8px 10px;border-radius:6px;overflow:auto;white-space:pre-wrap;margin:6px 0}
+.card{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:6px 0;background:var(--bg)}
+.card .t{font-size:12px;color:var(--muted);margin-bottom:6px}
+.chips{display:flex;flex-wrap:wrap;gap:5px}.chip{font:12px var(--mono);padding:2px 7px;border-radius:999px;border:1px solid transparent}
+.ok{color:var(--ok);background:var(--ok-bg)}.bad{color:var(--bad);background:var(--bad-bg)}.warn{color:var(--warn);background:var(--warn-bg)}
+.detail{font-size:12px;color:var(--muted);margin-top:6px}.detail div{margin-top:2px}
+.side{gap:16px;background:none;border:0}.side>div{background:var(--panel);border:1px solid var(--line);border-radius:10px}
+.list{padding:6px 0;max-height:42vh;overflow:auto}.row{padding:8px 14px;border-top:1px solid var(--line);cursor:pointer}.row:first-child{border-top:0}
+.row:hover{background:var(--bg)}.row .a{display:flex;justify-content:space-between;gap:8px;font-weight:600}
+.row .b{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.badge{font-size:11px;padding:1px 7px;border-radius:999px;font-weight:600;white-space:nowrap}
+.empty{padding:14px;color:var(--muted);font-size:13px}
+dialog{border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--ink);width:min(760px,92vw);padding:0}
+dialog::backdrop{background:#0007}dialog header{padding:14px 16px;border-bottom:1px solid var(--line)}dialog .lines{padding:8px 16px 16px;font:12px/1.6 var(--mono);max-height:65vh;overflow:auto}
+button{font:inherit;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:6px;padding:3px 10px;cursor:pointer}
+a{color:var(--accent)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Agora <span>Notary</span></h1>
+  <div class="sub"><span class="live"></span>live view of the desk · read-only, no login · messages read from Switch · signing key <code id="key">…</code></div>
+</header>
+<main>
+  <section><h2>Desk <em>people + Notary: only checked results land here</em></h2><div class="feed" id="desk"></div></section>
+  <section><h2>Work room <em>builder, reviewer, Notary</em></h2><div class="feed" id="work"></div></section>
+  <section class="side">
+    <div><h2>Work orders</h2><div class="list" id="wos"></div></div>
+    <div><h2>Receipts <em>checked like agora-verify</em></h2><div class="list" id="receipts"></div></div>
+  </section>
+</main>
+<dialog id="dlg"><header><b id="dlg-t"></b> <span class="sub" id="dlg-c"></span> <button onclick="dlg.close()" style="float:right">Close</button></header><div class="lines" id="dlg-l"></div></dialog>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const CONTRADICT = new Set(["tests_failed","commit_missing","not_on_branch","files_differ","undisclosed_change","command_failed","citation_unknown","citation_irrelevant","block_invalid","block_missing"]);
+const cls = code => code == null ? "ok" : CONTRADICT.has(code) ? "bad" : "warn";
+const STATE = {building:"warn",reviewing:"warn",awaiting_approval:"warn",approved:"ok",held:"bad",escalated:"bad"};
+const time = ms => ms ? new Date(ms).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",second:"2-digit"}) : "";
+
+function inline(t) {
+  return esc(t).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
+}
+function block(tag, json) {
+  let b; try { b = JSON.parse(json); } catch { return `<pre>${esc(json)}</pre>`; }
+  if (tag === "notary-bounce") {
+    const chips = [...(b.backed||[]).map(c => `<span class="chip ok">${esc(c)} backed</span>`),
+      ...(b.fix||[]).map(f => `<span class="chip bad">${esc(f.claim||"finding")} ${esc(f.code)}</span>`),
+      ...(b.unverified||[]).map(f => `<span class="chip warn">${esc(f.claim||"finding")} ${esc(f.code)}</span>`)];
+    const detail = (b.fix||[]).map(f => `<div><b>${esc(f.code)}</b>: ${esc(f.do)}${f.facts && f.facts.ids ? " · " + esc(f.facts.ids.join(", ")) : ""}${f.facts && f.facts.paths ? " · " + esc(f.facts.paths.join(", ")) : ""} · <code>${esc((f.ev||[]).map(e => e.slice(0,11)).join(" "))}</code></div>`).join("");
+    return `<div class="card"><div class="t">bounce ${b.attempt} of ${b.max} · ${esc(b.wo)} at <code>${esc((b.sha||"").slice(0,7))}</code></div><div class="chips">${chips.join("")}</div><div class="detail">${detail}</div></div>`;
+  }
+  if (tag === "notary-verdict") {
+    const chips = [...(b.checked||[]).map(c => `<span class="chip ${cls(c.code)}">${esc(c.claim)} ${esc(c.code || "backed")}</span>`),
+      ...(b.findings||[]).map(f => `<span class="chip ${cls(f.code)}">finding ${esc(f.code)}</span>`)];
+    return `<div class="card"><div class="t">verdict · ${esc(b.stage)} report ${b.attempt} · next: <b>${esc(b.next)}</b></div><div class="chips">${chips.join("")}</div></div>`;
+  }
+  if (tag === "notary-claims") {
+    const chips = (b.claims||[]).map(c => `<span class="chip" style="background:var(--code)">${esc(c.id)} ${esc(c.kind)}</span>`);
+    return `<div class="card"><div class="t">claims for ${esc(b.wo)} at <code>${esc((b.sha||"").slice(0,7))}</code></div><div class="chips">${chips.join("")}</div></div>`;
+  }
+  return `<pre>${esc(json)}</pre>`;
+}
+function render(body) {
+  const out = []; const re = /```([\w-]*)\n([\s\S]*?)```/g; let last = 0, m;
+  while ((m = re.exec(body))) { out.push(inline(body.slice(last, m.index).trimEnd())); out.push(block(m[1], m[2])); last = re.lastIndex; }
+  out.push(inline(body.slice(last)));
+  return out.join("");
+}
+function feed(el, events) {
+  const near = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  el.innerHTML = events.length ? events.map(e => {
+    const n = e.sender_name || "?"; const kind = n === "agora-notary" ? "notary" : /-(builder|reviewer)$/.test(n) ? "agent" : "";
+    return `<div class="msg"><div class="av ${kind}">${esc(n.slice(0,2).toUpperCase())}</div><div><div class="who">${esc(n)}<small>${time(e.timestamp)}</small></div><div class="body">${render(e.body || "")}</div></div></div>`;
+  }).join("") : `<div class="empty">No messages yet.</div>`;
+  if (near) el.scrollTop = el.scrollHeight;
+}
+async function ledger(wo) {
+  const r = await (await fetch(`/api/ledger/${wo}`)).json();
+  $("dlg-t").textContent = `${wo} ledger`; $("dlg-c").textContent = r.chain;
+  $("dlg-l").innerHTML = r.lines.map(l => `<div>${inline(l)}</div>`).join("") || "empty";
+  $("dlg").showModal();
+}
+let lastJson = "";
+async function tick() {
+  try {
+    const text = await (await fetch("/api/state")).text();
+    if (text !== lastJson) {
+      lastJson = text; const s = JSON.parse(text);
+      $("key").textContent = (s.key || "").slice(0, 16);
+      feed($("desk"), s.desk || []); feed($("work"), s.work || []);
+      $("wos").innerHTML = (s.work_orders||[]).map(w => `<div class="row" onclick="ledger('${esc(w.wo)}')"><div class="a">${esc(w.wo)} <span class="badge ${STATE[w.state]||""}">${esc(w.state.replace("_"," "))}</span></div><div class="b">${esc(w.title)} · ${esc(w.requester)} · ${w.attempts} report(s)</div></div>`).join("") || `<div class="empty">No work orders yet. In the desk: @agora-notary new …</div>`;
+      $("receipts").innerHTML = (s.receipts||[]).map(r => r.ok
+        ? `<div class="row" onclick="ledger('${esc(r.wo)}')"><div class="a">${esc(r.wo)} <span class="badge ok">OK</span></div><div class="b">${r.entries} entries · head <code>${esc(r.head.slice(0,12))}</code> · <a href="/receipts/${esc(r.file)}" onclick="event.stopPropagation()">download</a></div></div>`
+        : `<div class="row"><div class="a">${esc(r.file)} <span class="badge bad">FAIL</span></div><div class="b">${esc(r.why)}</div></div>`).join("") || `<div class="empty">Receipts appear when an approver approves.</div>`;
+    }
+  } catch (e) { /* the Notary restarting: try again */ }
+}
+tick(); setInterval(tick, 2500);
+</script>
+</body>
+</html>
