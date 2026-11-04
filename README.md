@@ -1,6 +1,6 @@
-# Agora Notary
+# Notary
 
-**AI coworkers that have to show receipts.** Agora Notary is a work-order desk built on
+**AI coworkers that have to show receipts.** Notary is a work-order desk built on
 [Switch](https://github.com/sandbox-quantum/switch). People file requests in team chat. AI agents
 (Claude Code, OpenCode) do the work in a separate room. A Notary agent checks every claim they make
 against evidence no agent can write before anything reaches the people who asked. It checks:
@@ -16,7 +16,7 @@ checked claims, an approval button, and a signed, hash-chained receipt that anyo
 ```
  #acme-desk  (people + Notary)                    #acme-work  (builder, reviewer, Notary)
  ─────────────────────────────                    ───────────────────────────────────────
- sam:  @agora-notary new Globex invoices           Notary: @acme-builder WO-7: ... branch wo-7
+ sam:  @notary new Globex invoices                  Notary: @acme-builder WO-7: ... branch wo-7
        over $10k show the wrong tax                builder: done, all tests pass  ```notary-claims ...```
                                                    Notary: WO-7 bounced (1 of 2): 1 to fix
                                                            c3 tests_failed: my run at 3f9a2c1 is 17/18,
@@ -29,7 +29,7 @@ checked claims, an approval button, and a signed, hash-chained receipt that anyo
          [Approve and ship] [Hold]
  sam:    (presses Approve) -> "sam isn't an approver for WO-7 (not_an_approver)"
  priya:  (presses Approve) -> "WO-7 approved by priya. Signed ledger head f41e195d…"
-         receipt-wo-7.json   ->   $ agora-verify receipt-wo-7.json   ->   OK WO-7: 13 entries, chain intact
+         receipt-wo-7.json   ->   $ notary-verify receipt-wo-7.json   ->   OK WO-7: 13 entries, chain intact
 ```
 
 ## Why
@@ -69,7 +69,7 @@ make verify-sample
 # OK WO-7: 13 entries, chain intact, head f41e195df127d86f, signed by 9ef55a46dfd3e0de
 ```
 
-Change any byte in `samples/receipt-wo-7.json` and it prints `FAIL`.
+Change any byte in `samples/receipt-wo-1.json` and it prints `FAIL`.
 
 ### 2. The keyless demo: real Switch, real Mattermost, scripted agents (no model keys)
 
@@ -98,16 +98,16 @@ This does the following:
 
 **Watch it at http://localhost:8090.** That's the Notary's read-only viewer, with no login: both rooms
 live (read from Switch), the work orders, each one's ledger, and every receipt checked the same way
-`agora-verify` checks it. To act in chat yourself, Mattermost is at http://localhost:8065 (team `switch`);
+`notary-verify` checks it. To act in chat yourself, Mattermost is at http://localhost:8065 (team `switch`);
 the logins are in `infra/.env` (`MATTERMOST_USER_PASSWORD`, `DEMO_PASSWORD_PRIYA`, `DEMO_PASSWORD_SAM`).
 
 ### 3. Live: Claude Code builds, OpenCode reviews
 
 1. `make up`, then `make sandbox-image ENGINE=podman`.
 2. Install [Switch Console](https://github.com/sandbox-quantum/switch/releases) 0.40.1, choose **Connect to an existing server** `http://localhost:8000`, and sign in as `admin@switch.local` (`GATEWAY_ADMIN_PASSWORD` in `infra/.env`).
-3. Apply `templates/agora-desk.template.yaml` from Console's Templates page. This creates `acme-builder` (Claude Code), `acme-reviewer` (OpenCode) and the two rooms.
+3. Apply `templates/notary-desk.template.yaml` from Console's Templates page. This creates `acme-builder` (Claude Code), `acme-reviewer` (OpenCode) and the two rooms.
 4. `make install-live ENGINE=podman && make doctor && make run`.
-5. In Mattermost's `acme-desk`, as sam: `@agora-notary new Globex invoices over $10k show the wrong tax total`.
+5. In Mattermost's `acme-desk`, as sam: `@notary new Globex invoices over $10k show the wrong tax total`.
 
 ## How the Notary decides
 
@@ -143,13 +143,13 @@ head is signed with Ed25519 and posted into the desk, and the bundle is uploaded
 - **The sandbox is a container, not a VM.** It has no network, a read-only root, all capabilities dropped,
   no-new-privileges and memory, CPU and PID limits. Run it against your own team's repositories.
 - **The signature proves what the Notary committed to, not that the Notary is honest.** The room-log
-  witness and a pinned key (`agora-verify --key`) narrow that gap.
+  witness and a pinned key (`notary-verify --key`) narrow that gap.
 - **Not a merge bot.** Approval marks a work order approved for shipping; merging stays a person's job.
 
 ## Layout
 
 ```
-crates/notary-core   evidence, claims parser, judge, ledger, signing, receipts, renderer, agora-verify (41 tests)
+crates/notary-core   evidence, claims parser, judge, ledger, signing, receipts, renderer, notary-verify (41 tests)
 crates/notary        the agent: Switch client (WebSocket + HTTP), git mirror, podman/docker sandbox, desk state machine,
                      read-only viewer on 127.0.0.1:8090 (NOTARY_VIEW_ADDR=off to disable)
 templates/           the Switch rooms template (Desk Policy + Reporting Contract)
@@ -168,7 +168,7 @@ itself) was built Nov 4–7.
 - From the author's [agora-rs](https://github.com/BlueDocX/agora-rs) (MIT):
   - `crates/agora-engine/src/ledger.rs` → `notary-core/src/ledger.rs`: the hash chain, `verify_chain`, `verify_head` and 6 tests, adapted to record IDs. Salts and forgetting were dropped.
   - `signing.rs` → `notary-core/src/signing.rs`, nearly unchanged.
-  - The `check_receipt` logic of `agora-verify`.
+  - The `check_receipt` logic of `notary-verify`.
   - The workspace lints and dependency pins.
   - Ideas only, from `alibi.rs` and `guard.rs`: backed/contradicted claim audits, two revisions, code-written corrections, failing closed.
 - From [agora](https://github.com/Ritesh-Root/agora) (TypeScript): the idea of policy bands (proceed, or ask a person).

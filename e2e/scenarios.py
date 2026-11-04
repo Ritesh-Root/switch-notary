@@ -1,4 +1,4 @@
-"""Keyless end-to-end scenarios for Agora Notary, against a real Switch + Mattermost.
+"""Keyless end-to-end scenarios for Notary, against a real Switch + Mattermost.
 
 The builder and reviewer are scripted HTTP agents (no model): each scenario plants a known
 behaviour (an honest fix, a lie about the tests, a piped command, an edit to a protected test,
@@ -22,7 +22,7 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-STATE = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "agora-notary"
+STATE = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "switch-notary"
 
 
 def load_env(path):
@@ -214,7 +214,7 @@ def blocks(body, tag):
 def notary_block(agent, wo, tag, attempt=None, stage=None, seen=()):
     """The newest notary-bounce / notary-verdict block for `wo` that we haven't consumed yet."""
     for e in reversed(agent.history(WORK)):
-        if e["sender_name"] != "agora-notary":
+        if e["sender_name"] != "notary":
             continue
         for b in blocks(e["body"], tag):
             key = json.dumps(b, sort_keys=True)
@@ -230,11 +230,11 @@ def any_block(agent, wo, seen):
 def open_wo(title):
     builder = Scripted(BUILDER)
     before = {e["body"] for e in builder.history(WORK)}
-    mm_say("sam", DESK_CHANNEL, f"@agora-notary new {title}")
+    mm_say("sam", DESK_CHANNEL, f"@notary new {title}")
 
     def assigned():
         for e in reversed(builder.history(WORK)):
-            if e["sender_name"] == "agora-notary" and e["body"] not in before and f"@{BUILDER} WO-" in e["body"]:
+            if e["sender_name"] == "notary" and e["body"] not in before and f"@{BUILDER} WO-" in e["body"]:
                 wo = re.search(r"(WO-\d+)", e["body"]).group(1)
                 branch = re.search(r"Branch `(wo-\d+)`", e["body"]).group(1)
                 return wo, branch
@@ -248,7 +248,7 @@ def claims(wo, sha, items):
 
 
 def report(agent, wo, sha, items, note="Done."):
-    agent.post(WORK, f"@agora-notary {wo}: {note}\n{claims(wo, sha, items)}")
+    agent.post(WORK, f"@notary {wo}: {note}\n{claims(wo, sha, items)}")
 
 
 def builder_claims(branch, sha, paths, command="pytest -q", cites=None):
@@ -311,9 +311,9 @@ def scenario_honest():
     wait(lambda: hub_said(f"{wo} approved by priya"), "the approval")
     receipt = DATA / "receipts" / f"receipt-{wo.lower()}.json"
     wait(receipt.exists, "the receipt file", 30)
-    verify = ROOT / "target/release/agora-verify"
+    verify = ROOT / "target/release/notary-verify"
     good = subprocess.run([str(verify), str(receipt)], capture_output=True, text=True)
-    ok &= expect(f"{wo} agora-verify", good.stdout.split(":")[0].split()[0], "OK")
+    ok &= expect(f"{wo} notary-verify", good.stdout.split(":")[0].split()[0], "OK")
     tampered = Path(tempfile.mkdtemp()) / "tampered.json"
     tampered.write_text(receipt.read_text().replace("priya", "priyb", 1))  # one byte
     bad = subprocess.run([str(verify), str(tampered)], capture_output=True, text=True)

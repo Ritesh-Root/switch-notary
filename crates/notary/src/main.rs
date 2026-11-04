@@ -1,4 +1,4 @@
-//! `notary`: the Agora Notary agent.
+//! `notary`: the Notary agent.
 //!
 //! - `notary run`: join Switch and run the work-order desk.
 //! - `notary doctor`: check every dependency and say what's wrong, with a code.
@@ -126,10 +126,10 @@ async fn doctor() -> Result<(), NotaryError> {
                         .flatten()
                         .filter_map(|x| x.get("name").and_then(Value::as_str).map(str::to_string))
                         .collect();
-                    if names.iter().any(|n| n == "agora-notary") {
+                    if names.iter().any(|n| n == "notary") {
                         Ok(names.join(", "))
                     } else {
-                        Err(NotaryError::new(Code::ConfigurationInvalid, format!("agora-notary isn't in it ({})", names.join(", "))))
+                        Err(NotaryError::new(Code::ConfigurationInvalid, format!("notary isn't in it ({})", names.join(", "))))
                     }
                 });
                 report(name, r);

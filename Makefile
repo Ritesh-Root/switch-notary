@@ -1,7 +1,7 @@
-# Agora Notary. The sandbox engine is explicit (no auto-detection): make <target> ENGINE=podman|docker
+# Notary. The sandbox engine is explicit (no auto-detection): make <target> ENGINE=podman|docker
 ENGINE ?=
 export NOTARY_SANDBOX_ENGINE := $(ENGINE)
-NOTARY_LOG := $(HOME)/.local/share/agora-notary/notary.log
+NOTARY_LOG := $(HOME)/.local/share/switch-notary/notary.log
 
 .PHONY: help up down reset build test lint sandbox-image install-offline install-live doctor run e2e demo-offline verify-sample need-engine
 
@@ -22,7 +22,7 @@ down:
 
 reset: ## stops the stack and deletes its volumes, the Notary's data and keys
 	-cd infra && docker compose --env-file .env -f compose.yml --profile collab down -v
-	rm -rf infra/.env infra/notary.env "$(HOME)/.local/share/agora-notary" "$(HOME)/.config/agora-notary"
+	rm -rf infra/.env infra/notary.env "$(HOME)/.local/share/switch-notary" "$(HOME)/.config/switch-notary"
 
 build:
 	cargo build --release
@@ -61,4 +61,4 @@ demo-offline: need-engine up sandbox-image install-offline build
 	  python3 -I e2e/scenarios.py; status=$$?; kill $$(cat .notary.pid); rm -f .notary.pid; exit $$status
 
 verify-sample:
-	cargo run --quiet --release -p notary-core --bin agora-verify -- samples/receipt-wo-7.json
+	cargo run --quiet --release -p notary-core --bin notary-verify -- samples/receipt-wo-1.json

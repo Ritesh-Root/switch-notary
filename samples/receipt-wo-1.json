@@ -1,0 +1,469 @@
+{
+  "protocol": "notary-receipt/1",
+  "head": {
+    "run": "WO-1",
+    "entries": 13,
+    "head": "62eb84daae712472b5f794124844abe283dbdd3db57193c8e559b58cc942be9b",
+    "at_ms": 1793830324823,
+    "key": "431d229c445b0fd6e95e0500d88c4197e6fe7fa98d8cd09d7549f4badee9140c",
+    "signature": "49df997534557c676ba60e2a2b0f6696028c1641521a497ff77744df0e4229ae33924e28bb181a5df04e06186c84782e36101690db7f5e72c5d540a9681e6403"
+  },
+  "entries": [
+    {
+      "seq": 1,
+      "at_ms": 1793830309214,
+      "kind": "policy",
+      "record": "po_d6e111c7b8a4d781d53fdf37d23850183e1a454241291767baefe159dc3b2798",
+      "prev": "0000000000000000000000000000000000000000000000000000000000000000",
+      "hash": "b4d902f3dd7485fd0b27b17e2f69da9ed76aa2c44c88ef5371c832acb064c9da"
+    },
+    {
+      "seq": 2,
+      "at_ms": 1793830310692,
+      "kind": "report",
+      "record": "rp_b17fb4f74440020f93e737e266d2f3f433c89bf16b14de4a8b6696d125b1deb3",
+      "prev": "b4d902f3dd7485fd0b27b17e2f69da9ed76aa2c44c88ef5371c832acb064c9da",
+      "hash": "eabb0000c0e667d0bf77351759f81c8379b80d259e9b286c691d223904e5e079"
+    },
+    {
+      "seq": 3,
+      "at_ms": 1793830310711,
+      "kind": "evidence",
+      "record": "ev_4c0cffe05912cb7ba05489c80d44f50c47b9fd8c89eb980fe974364e517d7663",
+      "prev": "eabb0000c0e667d0bf77351759f81c8379b80d259e9b286c691d223904e5e079",
+      "hash": "7d0965a99dd1b95a4b2b10036ed9a5742132c14cc82bd81d7178938734d47cde"
+    },
+    {
+      "seq": 4,
+      "at_ms": 1793830310715,
+      "kind": "evidence",
+      "record": "ev_939eb1fbc4c106b7bee057efcb89fee370009ec28852cd7d540f07366ffeed09",
+      "prev": "7d0965a99dd1b95a4b2b10036ed9a5742132c14cc82bd81d7178938734d47cde",
+      "hash": "7a970e16d0f993f128d66a64fbab5596351656fbd1f088d50cfb4dc1f1e6bff8"
+    },
+    {
+      "seq": 5,
+      "at_ms": 1793830311642,
+      "kind": "evidence",
+      "record": "ev_704334d7fca4373a08d498abc0bed0373240c9818ddc6e84eb35d872a2a3e16a",
+      "prev": "7a970e16d0f993f128d66a64fbab5596351656fbd1f088d50cfb4dc1f1e6bff8",
+      "hash": "31b08bf98c201363fd7e01bd200023e8e82565c10c5f3e546c914e964144b79a"
+    },
+    {
+      "seq": 6,
+      "at_ms": 1793830316885,
+      "kind": "evidence",
+      "record": "ev_9ac1b40510dcd4fe376469d5755e9c3387d6bef07cfe3f071f7e7135e438f51d",
+      "prev": "31b08bf98c201363fd7e01bd200023e8e82565c10c5f3e546c914e964144b79a",
+      "hash": "4c9ee8808dcea1fbeb9c6f2464da0854e9781a38440742085680fbb0cbb47c38"
+    },
+    {
+      "seq": 7,
+      "at_ms": 1793830316886,
+      "kind": "audit",
+      "record": "au_af4b2f1746ac9c9731ec9e0a9298eb66da7ffac5c1c83023115c3135d01ad954",
+      "prev": "4c9ee8808dcea1fbeb9c6f2464da0854e9781a38440742085680fbb0cbb47c38",
+      "hash": "317377faff6b1e345c3c0f39c6dcb9c0d42bf02d36ced678689de987b1754bad"
+    },
+    {
+      "seq": 8,
+      "at_ms": 1793830318404,
+      "kind": "report",
+      "record": "rp_d13671740d518c3d3090f7dd437fbf2f79528cce213d294e8d19844142f033b2",
+      "prev": "317377faff6b1e345c3c0f39c6dcb9c0d42bf02d36ced678689de987b1754bad",
+      "hash": "d378972d0e29e75117b3a1f0629630d90146c53366dd759b20cb95f9cbe0da24"
+    },
+    {
+      "seq": 9,
+      "at_ms": 1793830318417,
+      "kind": "evidence",
+      "record": "ev_6defb3ec82505d95e707e12e822d21e860b292e8db14c39687cdf06ed7c84535",
+      "prev": "d378972d0e29e75117b3a1f0629630d90146c53366dd759b20cb95f9cbe0da24",
+      "hash": "3fbbc93b6c0f59226a3e48dd3e411dcff8636d8588ede132fafff199922eeec8"
+    },
+    {
+      "seq": 10,
+      "at_ms": 1793830323438,
+      "kind": "evidence",
+      "record": "ev_37f1b76e7342bdf31c4a5bd874fe7c7f7fafb08fa2def3622bda5b82e18d93f3",
+      "prev": "3fbbc93b6c0f59226a3e48dd3e411dcff8636d8588ede132fafff199922eeec8",
+      "hash": "2c97cc22c2803418e67939d84d6bcda8f12c226fe1583d2068c5a16de5175155"
+    },
+    {
+      "seq": 11,
+      "at_ms": 1793830323440,
+      "kind": "audit",
+      "record": "au_18ce79c3597d81b21e9f99a4f31439ed3f9c785e383d937268a9e09e23ada46c",
+      "prev": "2c97cc22c2803418e67939d84d6bcda8f12c226fe1583d2068c5a16de5175155",
+      "hash": "7f4ab373044ba6a23603b2ead6fd4c307ca91c8d3c2ca3e81a009633e0bc9dd2"
+    },
+    {
+      "seq": 12,
+      "at_ms": 1793830324579,
+      "kind": "decision",
+      "record": "dc_75a060ccab4fb83b134fb3cdfd25a5c63e54d4d6b3740635c5ff21e30de4a017",
+      "prev": "7f4ab373044ba6a23603b2ead6fd4c307ca91c8d3c2ca3e81a009633e0bc9dd2",
+      "hash": "a6634bf503ad90ed5ff29cdefbb568946e7b818ee966b783865e3ba2b48f7b62"
+    },
+    {
+      "seq": 13,
+      "at_ms": 1793830324822,
+      "kind": "decision",
+      "record": "dc_4ac347788a2012142d5952d65094eab7db16cae21a95122b7368d6b06a9cc633",
+      "prev": "a6634bf503ad90ed5ff29cdefbb568946e7b818ee966b783865e3ba2b48f7b62",
+      "hash": "62eb84daae712472b5f794124844abe283dbdd3db57193c8e559b58cc942be9b"
+    }
+  ],
+  "records": {
+    "au_18ce79c3597d81b21e9f99a4f31439ed3f9c785e383d937268a9e09e23ada46c": {
+      "agent": "demo-reviewer",
+      "attempt": 1,
+      "checked": [
+        {
+          "claim": "c1",
+          "evidence": [
+            "ev_37f1b76e7342bdf31c4a5bd874fe7c7f7fafb08fa2def3622bda5b82e18d93f3"
+          ],
+          "kind": "reviewed_diff",
+          "verdict": "backed"
+        },
+        {
+          "claim": "c2",
+          "evidence": [
+            "ev_37f1b76e7342bdf31c4a5bd874fe7c7f7fafb08fa2def3622bda5b82e18d93f3"
+          ],
+          "kind": "check_ran",
+          "limitations": [
+            "switch_host: reported with the agent's own key; corroboration, not proof"
+          ],
+          "verdict": "backed"
+        }
+      ],
+      "findings": [],
+      "protocol": "notary-audit/1",
+      "report": "rp_d13671740d518c3d3090f7dd437fbf2f79528cce213d294e8d19844142f033b2",
+      "sha": "7180cf459f551037d5bd56ac7f74d7e9f345b5c5",
+      "stage": "reviewer",
+      "wo": "WO-1"
+    },
+    "au_af4b2f1746ac9c9731ec9e0a9298eb66da7ffac5c1c83023115c3135d01ad954": {
+      "agent": "demo-builder",
+      "attempt": 1,
+      "checked": [
+        {
+          "claim": "c1",
+          "evidence": [
+            "ev_4c0cffe05912cb7ba05489c80d44f50c47b9fd8c89eb980fe974364e517d7663"
+          ],
+          "kind": "commit_pushed",
+          "verdict": "backed"
+        },
+        {
+          "claim": "c2",
+          "evidence": [
+            "ev_939eb1fbc4c106b7bee057efcb89fee370009ec28852cd7d540f07366ffeed09"
+          ],
+          "kind": "files_changed",
+          "verdict": "backed"
+        },
+        {
+          "claim": "c3",
+          "evidence": [
+            "ev_704334d7fca4373a08d498abc0bed0373240c9818ddc6e84eb35d872a2a3e16a"
+          ],
+          "kind": "tests_passed",
+          "verdict": "backed"
+        },
+        {
+          "claim": "c4",
+          "evidence": [
+            "ev_9ac1b40510dcd4fe376469d5755e9c3387d6bef07cfe3f071f7e7135e438f51d"
+          ],
+          "kind": "check_ran",
+          "limitations": [
+            "switch_host: reported with the agent's own key; corroboration, not proof"
+          ],
+          "verdict": "backed"
+        }
+      ],
+      "findings": [],
+      "protocol": "notary-audit/1",
+      "report": "rp_b17fb4f74440020f93e737e266d2f3f433c89bf16b14de4a8b6696d125b1deb3",
+      "sha": "7180cf459f551037d5bd56ac7f74d7e9f345b5c5",
+      "stage": "builder",
+      "wo": "WO-1"
+    },
+    "dc_4ac347788a2012142d5952d65094eab7db16cae21a95122b7368d6b06a9cc633": {
+      "answer": "approve",
+      "by": "priya",
+      "counted": true,
+      "protocol": "notary-decision/1",
+      "request": "wo-1-a2",
+      "wo": "WO-1"
+    },
+    "dc_75a060ccab4fb83b134fb3cdfd25a5c63e54d4d6b3740635c5ff21e30de4a017": {
+      "answer": "approve",
+      "by": "sam",
+      "counted": false,
+      "protocol": "notary-decision/1",
+      "request": "wo-1-a1",
+      "wo": "WO-1"
+    },
+    "ev_37f1b76e7342bdf31c4a5bd874fe7c7f7fafb08fa2def3622bda5b82e18d93f3": {
+      "authority": "switch_host",
+      "confidence": "inferred",
+      "coverage": {
+        "limitations": [
+          "reported by the agent's session host with the agent's own key",
+          "Bash titles are cut at 160 characters; tool output isn't recorded",
+          "rows are buffered: a missing row is not proof a command didn't run"
+        ],
+        "status": "partial"
+      },
+      "limitations": [],
+      "operation": "switch_activity",
+      "params": {
+        "agent": "demo-reviewer",
+        "room": "d759a785-8478-425c-b2cb-3781f83706d8"
+      },
+      "result": {
+        "rows": [
+          {
+            "status": "completed",
+            "title": "git diff main...7180cf4"
+          },
+          {
+            "status": "completed",
+            "title": "pytest -q"
+          }
+        ]
+      },
+      "subject": {
+        "repo": "acme-invoices",
+        "sha": "7180cf459f551037d5bd56ac7f74d7e9f345b5c5"
+      }
+    },
+    "ev_4c0cffe05912cb7ba05489c80d44f50c47b9fd8c89eb980fe974364e517d7663": {
+      "authority": "git",
+      "confidence": "observed",
+      "coverage": {
+        "status": "complete"
+      },
+      "limitations": [],
+      "operation": "git_commit",
+      "params": {
+        "branch": "wo-1"
+      },
+      "result": {
+        "exists": true,
+        "on_branch": true
+      },
+      "subject": {
+        "repo": "acme-invoices",
+        "sha": "7180cf459f551037d5bd56ac7f74d7e9f345b5c5"
+      }
+    },
+    "ev_6defb3ec82505d95e707e12e822d21e860b292e8db14c39687cdf06ed7c84535": {
+      "authority": "git",
+      "confidence": "observed",
+      "coverage": {
+        "status": "complete"
+      },
+      "limitations": [],
+      "operation": "git_commit",
+      "params": {
+        "branch": null
+      },
+      "result": {
+        "exists": true,
+        "on_branch": null
+      },
+      "subject": {
+        "repo": "acme-invoices",
+        "sha": "7180cf459f551037d5bd56ac7f74d7e9f345b5c5"
+      }
+    },
+    "ev_704334d7fca4373a08d498abc0bed0373240c9818ddc6e84eb35d872a2a3e16a": {
+      "authority": "notary_run",
+      "confidence": "observed",
+      "coverage": {
+        "status": "complete"
+      },
+      "limitations": [],
+      "operation": "notary_test_run",
+      "params": {
+        "argv": [
+          "pytest",
+          "-q"
+        ],
+        "image": "e81f420ad9b3a6d5af777afd0aeb412e4dd675b1bfa6235552aff3cf03afe8f0",
+        "network": "none"
+      },
+      "result": {
+        "collected": 18,
+        "errors": 0,
+        "exit_code": 0,
+        "failed": 0,
+        "failed_ids": [],
+        "log_bytes": 99,
+        "log_sha256": "8ee478d15541cf62c53cb9c73b798353c8116fe2fa86492e504bd1a65792b9ac",
+        "passed": 18,
+        "run_id": "15157183d904c8c0"
+      },
+      "subject": {
+        "repo": "acme-invoices",
+        "sha": "7180cf459f551037d5bd56ac7f74d7e9f345b5c5"
+      }
+    },
+    "ev_939eb1fbc4c106b7bee057efcb89fee370009ec28852cd7d540f07366ffeed09": {
+      "authority": "git",
+      "confidence": "observed",
+      "coverage": {
+        "status": "complete"
+      },
+      "limitations": [],
+      "operation": "git_diff",
+      "params": {
+        "base": "de3922b4b971573d68e18a1c18be36998b334860"
+      },
+      "result": {
+        "paths": [
+          "src/invoices/reports.py",
+          "src/invoices/tax.py",
+          "tests/test_fin12.py"
+        ]
+      },
+      "subject": {
+        "repo": "acme-invoices",
+        "sha": "7180cf459f551037d5bd56ac7f74d7e9f345b5c5"
+      }
+    },
+    "ev_9ac1b40510dcd4fe376469d5755e9c3387d6bef07cfe3f071f7e7135e438f51d": {
+      "authority": "switch_host",
+      "confidence": "inferred",
+      "coverage": {
+        "limitations": [
+          "reported by the agent's session host with the agent's own key",
+          "Bash titles are cut at 160 characters; tool output isn't recorded",
+          "rows are buffered: a missing row is not proof a command didn't run"
+        ],
+        "status": "partial"
+      },
+      "limitations": [],
+      "operation": "switch_activity",
+      "params": {
+        "agent": "demo-builder",
+        "room": "d759a785-8478-425c-b2cb-3781f83706d8"
+      },
+      "result": {
+        "rows": [
+          {
+            "status": "completed",
+            "title": "pytest -q"
+          }
+        ]
+      },
+      "subject": {
+        "repo": "acme-invoices",
+        "sha": "7180cf459f551037d5bd56ac7f74d7e9f345b5c5"
+      }
+    },
+    "po_d6e111c7b8a4d781d53fdf37d23850183e1a454241291767baefe159dc3b2798": {
+      "base": "de3922b4b971573d68e18a1c18be36998b334860",
+      "branch": "wo-1",
+      "policy": {
+        "acceptance": [
+          "pytest",
+          "-q"
+        ],
+        "approvers": [
+          "priya"
+        ],
+        "max_bounces": 2,
+        "protected": [
+          "tests/test_money.py",
+          "tests/test_tax.py",
+          "tests/test_reports.py",
+          "conftest.py",
+          "pyproject.toml",
+          ".github/**",
+          "*.lock"
+        ],
+        "protocol": "notary-policy/1"
+      },
+      "policy_doc_sha256": "de4975d2cf4b588e9a96ecc192ffac789ee05b18f3e9248bf390d32a1bea1337",
+      "protocol": "notary-intake/1",
+      "repo": "acme-invoices",
+      "requester": "sam",
+      "title": "Globex invoices over $10k show the wrong tax total",
+      "wo": "WO-1"
+    },
+    "rp_b17fb4f74440020f93e737e266d2f3f433c89bf16b14de4a8b6696d125b1deb3": {
+      "agent": "demo-builder",
+      "message_id": "sw_5a25af865d644faeae256f78edda6327",
+      "report": {
+        "claims": [
+          {
+            "branch": "wo-1",
+            "cites": [],
+            "id": "c1",
+            "kind": "commit_pushed",
+            "sha": "7180cf459f551037d5bd56ac7f74d7e9f345b5c5"
+          },
+          {
+            "cites": [],
+            "id": "c2",
+            "kind": "files_changed",
+            "paths": [
+              "src/invoices/tax.py",
+              "tests/test_fin12.py",
+              "src/invoices/reports.py"
+            ]
+          },
+          {
+            "cites": [],
+            "command": "pytest -q",
+            "id": "c3",
+            "kind": "tests_passed",
+            "paths": [],
+            "scope": "full"
+          },
+          {
+            "cites": [],
+            "command": "pytest -q",
+            "id": "c4",
+            "kind": "check_ran",
+            "outcome": "passed"
+          }
+        ],
+        "protocol": "notary-claims/1",
+        "sha": "7180cf459f551037d5bd56ac7f74d7e9f345b5c5",
+        "wo": "WO-1"
+      }
+    },
+    "rp_d13671740d518c3d3090f7dd437fbf2f79528cce213d294e8d19844142f033b2": {
+      "agent": "demo-reviewer",
+      "message_id": "sw_762af6927b014235bef64e46589c29e8",
+      "report": {
+        "claims": [
+          {
+            "cites": [],
+            "id": "c1",
+            "kind": "reviewed_diff",
+            "sha": "7180cf459f551037d5bd56ac7f74d7e9f345b5c5"
+          },
+          {
+            "cites": [],
+            "command": "pytest -q",
+            "id": "c2",
+            "kind": "check_ran",
+            "outcome": "passed"
+          }
+        ],
+        "protocol": "notary-claims/1",
+        "sha": "7180cf459f551037d5bd56ac7f74d7e9f345b5c5",
+        "wo": "WO-1"
+      }
+    }
+  }
+}

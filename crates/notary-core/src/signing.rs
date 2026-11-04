@@ -17,7 +17,7 @@ use ed25519_dalek::{Signature, Signer as _, SigningKey, VerifyingKey};
 use serde::{Deserialize, Serialize};
 
 /// What a signature covers, as text anyone can rebuild.
-const DOMAIN: &str = "agora notary signed head v1";
+const DOMAIN: &str = "notary signed head v1";
 
 /// A ledger head the Notary signed.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

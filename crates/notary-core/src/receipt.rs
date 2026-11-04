@@ -1,5 +1,5 @@
 //! A receipt: one self-contained JSON file holding a work order's signed head, its entries
-//! and every record they name. Anyone can check it offline with `agora-verify`: every
+//! and every record they name. Anyone can check it offline with `notary-verify`: every
 //! record re-hashes to its id, the entries form one chain ending at the signed head, and
 //! the signature is the Notary's.
 
@@ -12,7 +12,7 @@ use crate::ids;
 use crate::ledger::{Entry, RecordKind, verify_head};
 use crate::signing::SignedHead;
 
-pub const PROTOCOL: &str = "agora-notary-receipt/1";
+pub const PROTOCOL: &str = "notary-receipt/1";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

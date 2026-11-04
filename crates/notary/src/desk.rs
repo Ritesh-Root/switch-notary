@@ -246,7 +246,7 @@ impl Desk {
                 self.on_decision(&wo, &verb, &m.sender_name).await;
             }
             _ => {
-                let help = "File a work order: `@agora-notary new <what's wrong and how to tell it's fixed>`. Also `status` and `show WO-1`. The builder works in the work room; you only see results I've checked.";
+                let help = "File a work order: `@notary new <what's wrong and how to tell it's fixed>`. Also `status` and `show WO-1`. The builder works in the work room; you only see results I've checked.";
                 self.say(&self.cfg.hub_room, help).await;
             }
         }
@@ -289,7 +289,7 @@ impl Desk {
         let protected = policy.protected.join(", ");
         let acceptance = policy.acceptance.join(" ");
         let doc = format!(
-            "# {wo}: {}\n\nRequested by {} in the desk.\n\n- Repository: {}\n- Base: `{base}` (main)\n- Branch to push: `{branch}`\n- Acceptance check (the Notary runs it itself, with no network): `{acceptance}`\n- Don't edit: {protected}. Put new tests in new files.\n- Bounces allowed: {}\n\nWhen done, report to agora-notary in the work room. End your message with one `notary-claims` block (see the Reporting Contract document), with `\"wo\":\"{wo}\"` and the full 40-character sha you pushed.\n",
+            "# {wo}: {}\n\nRequested by {} in the desk.\n\n- Repository: {}\n- Base: `{base}` (main)\n- Branch to push: `{branch}`\n- Acceptance check (the Notary runs it itself, with no network): `{acceptance}`\n- Don't edit: {protected}. Put new tests in new files.\n- Bounces allowed: {}\n\nWhen done, report to notary in the work room. End your message with one `notary-claims` block (see the Reporting Contract document), with `\"wo\":\"{wo}\"` and the full 40-character sha you pushed.\n",
             defuse(&title),
             defuse(requester),
             self.cfg.repo_name,
@@ -649,9 +649,7 @@ impl Desk {
         let hub = &self.cfg.hub_room;
         if self.cfg.approval == Approval::Text {
             let who = w.policy.approvers.join(", ");
-            return self
-                .say(hub, &format!("Approvers ({}): reply `@agora-notary approve {}` or `@agora-notary hold {}`.", defuse(&who), w.wo, w.wo))
-                .await;
+            return self.say(hub, &format!("Approvers ({}): reply `@notary approve {}` or `@notary hold {}`.", defuse(&who), w.wo, w.wo)).await;
         }
         let k: i64 =
             self.db.query_row("SELECT COUNT(*) FROM seen WHERE message_id LIKE ?1", params![format!("card:{}:%", w.wo)], |r| r.get(0)).unwrap_or(0)
@@ -753,14 +751,14 @@ impl Desk {
         if let Err(e) = self.put_doc(&hub, &format!("{} Receipt", w.wo), &w.title, "The Notary's signed receipt for this work order.", &doc).await {
             eprintln!("notary: couldn't create the receipt document: {e}");
         }
-        if let Err(e) = self.agent.upload(&hub, &file, "application/json", json, &format!("{} receipt (agora-notary-receipt/1)", w.wo)).await {
+        if let Err(e) = self.agent.upload(&hub, &file, "application/json", json, &format!("{} receipt (notary-receipt/1)", w.wo)).await {
             eprintln!("notary: couldn't upload the receipt: {e}");
         }
         self.set_state(&w.wo, "approved");
         self.say(
             &hub,
             &format!(
-                "**{} approved by {}.** Signed ledger head `{}` ({} entries, key `{}`). This message is the room's witness: `agora-verify {file}` must report this same head.",
+                "**{} approved by {}.** Signed ledger head `{}` ({} entries, key `{}`). This message is the room's witness: `notary-verify {file}` must report this same head.",
                 w.wo,
                 defuse(by),
                 head.head,

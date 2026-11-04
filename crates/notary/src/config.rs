@@ -79,8 +79,8 @@ impl Config {
         };
         let repo_url = var("NOTARY_REPO_URL")?;
         let repo_name = repo_url.trim_end_matches('/').trim_end_matches(".git").rsplit('/').next().unwrap_or("repo").to_string();
-        let data_dir = std::env::var_os("NOTARY_DATA_DIR").map_or_else(|| home().join(".local/share/agora-notary"), PathBuf::from);
-        let state_dir = std::env::var_os("XDG_CONFIG_HOME").map_or_else(|| home().join(".config"), PathBuf::from).join("agora-notary");
+        let data_dir = std::env::var_os("NOTARY_DATA_DIR").map_or_else(|| home().join(".local/share/switch-notary"), PathBuf::from);
+        let state_dir = std::env::var_os("XDG_CONFIG_HOME").map_or_else(|| home().join(".config"), PathBuf::from).join("switch-notary");
         let view_addr = match std::env::var("NOTARY_VIEW_ADDR").as_deref() {
             Ok("off") => None,
             Ok(v) => Some(v.parse().map_err(|_| bad("NOTARY_VIEW_ADDR", "must be host:port (e.g. 127.0.0.1:8090) or off"))?),

@@ -3,7 +3,7 @@
 # Prints the file:// URL to use as NOTARY_REPO_URL.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DATA="${NOTARY_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/agora-notary}"
+DATA="${NOTARY_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/switch-notary}"
 BARE="$DATA/acme-invoices.git"
 if [[ ! -d "$BARE" ]]; then
   mkdir -p "$DATA"

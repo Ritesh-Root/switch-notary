@@ -1,6 +1,6 @@
 //! A read-only window onto the desk, with no login: both rooms' messages (read through Switch's
 //! history API with the Notary's own key), the work orders, each work order's ledger, and the
-//! receipts, each checked with the same code as `agora-verify`. It binds to localhost only and
+//! receipts, each checked with the same code as `notary-verify`. It binds to localhost only and
 //! changes nothing; acting still happens in chat.
 
 use std::net::SocketAddr;

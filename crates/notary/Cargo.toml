@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Agora Notary: a Switch agent that checks agents' claims before people see them"
+description = "Notary: a Switch agent that checks agents' claims before people see them"
 
 [dependencies]
 notary-core.workspace = true

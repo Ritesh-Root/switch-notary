@@ -2,7 +2,7 @@
 # Wire a desk into Switch and write infra/notary.env.
 #
 #   scripts/install.sh offline   rooms demo-desk/demo-work with scripted builder + reviewer (no model keys)
-#   scripts/install.sh live      rooms acme-desk/acme-work, created by applying templates/agora-desk.template.yaml
+#   scripts/install.sh live      rooms acme-desk/acme-work, created by applying templates/notary-desk.template.yaml
 #                                in Switch Console (Claude Code builder, OpenCode reviewer)
 #
 # Both: add priya and sam to the desk, give the Notary an explicit addressing policy (its owner and
@@ -26,12 +26,12 @@ register_scripted() { # the keyless demo's builder and reviewer: plain HTTP agen
   local file="$STATE_DIR/scripted.json"
   [[ -f "$file" ]] || echo '{}' > "$file"
   local reg_key
-  reg_key="$(gw POST /api-keys '{"label":"agora-notary-scripted"}' | json 'd["key"]')"
+  reg_key="$(gw POST /api-keys '{"label":"notary-scripted"}' | json 'd["key"]')"
   for name in "$BUILDER" "$REVIEWER"; do
     if python3 -I -c "import json,sys; sys.exit(0 if sys.argv[2] in json.load(open(sys.argv[1])) else 1)" "$file" "$name"; then continue; fi
     local body out
     body="$(N="$name" python3 -I -c 'import json,os; print(json.dumps({"name":os.environ["N"],"display_name":os.environ["N"],
-      "description":"Scripted agent for the Agora Notary keyless demo (no model): fault injection on purpose",
+      "description":"Scripted agent for the Notary keyless demo (no model): fault injection on purpose",
       "connector_type":"scripted","integration_profile":{"connection_model":"always_on","message_exchange":True,
       "pre_invocation_mediation":[],"post_invocation_mediation":[],"event_reporting":[]},"tools":[],"models":[],"metadata":{},"overwrite":True}))')"
     out="$(curl -fsS -H "Authorization: Bearer $reg_key" -H 'Content-Type: application/json' -d "$body" "$SWITCH/agents")"
@@ -46,9 +46,9 @@ room_id() { gw GET "/rooms?search=$1" | N="$1" python3 -I -c 'import json,os,sys
 
 HUB="$(room_id "$TEAM-desk")"
 if [[ -z "$HUB" ]]; then
-  [[ "$MODE" == offline ]] || die "no room $TEAM-desk: apply templates/agora-desk.template.yaml in Switch Console first"
+  [[ "$MODE" == offline ]] || die "no room $TEAM-desk: apply templates/notary-desk.template.yaml in Switch Console first"
   BODY="$(T="$TEAM" B="$BUILDER" R="$REVIEWER" python3 -I -c 'import json,os,sys; print(json.dumps({"yaml":open(sys.argv[1]).read(),
-    "inputs":{"team":os.environ["T"],"builder":os.environ["B"],"reviewer":os.environ["R"],"notary":"agora-notary"},"template_name":"agora notary desk"}))' "$ROOT/templates/desk.rooms.yaml")"
+    "inputs":{"team":os.environ["T"],"builder":os.environ["B"],"reviewer":os.environ["R"],"notary":"notary"},"template_name":"notary desk"}))' "$ROOT/templates/desk.rooms.yaml")"
   gw POST /rooms/from-yaml "$BODY" >/dev/null
   HUB="$(room_id "$TEAM-desk")"
 fi
@@ -81,6 +81,6 @@ NOTARY_SANDBOX_ENGINE=$ENGINE
 NOTARY_SANDBOX_IMAGE=$IMAGE
 NOTARY_APPROVAL=${NOTARY_APPROVAL:-card}
 NOTARY_ACTIVITY=${NOTARY_ACTIVITY:-on}
-NOTARY_DATA_DIR=${NOTARY_DATA_DIR:-$HOME/.local/share/agora-notary/$MODE}
+NOTARY_DATA_DIR=${NOTARY_DATA_DIR:-$HOME/.local/share/switch-notary/$MODE}
 EOF
 echo "wrote infra/notary.env ($MODE)"

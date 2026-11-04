@@ -5,8 +5,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENGINE="${NOTARY_SANDBOX_ENGINE:?set NOTARY_SANDBOX_ENGINE to podman or docker}"
 case "$ENGINE" in podman|docker) ;; *) echo "NOTARY_SANDBOX_ENGINE must be podman or docker" >&2; exit 1;; esac
-"$ENGINE" build -q -t agora-notary-sandbox:1 -f "$ROOT/sandbox/Containerfile" "$ROOT/sandbox" >/dev/null
-ID="$("$ENGINE" image inspect --format '{{.Id}}' agora-notary-sandbox:1)"
+"$ENGINE" build -q -t notary-sandbox:1 -f "$ROOT/sandbox/Containerfile" "$ROOT/sandbox" >/dev/null
+ID="$("$ENGINE" image inspect --format '{{.Id}}' notary-sandbox:1)"
 ID="${ID#sha256:}"
 ENVF="$ROOT/infra/notary.env"
 touch "$ENVF"

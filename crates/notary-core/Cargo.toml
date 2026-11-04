@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Evidence, claims, judging, hash-chained ledger and signed receipts for Agora Notary"
+description = "Evidence, claims, judging, hash-chained ledger and signed receipts for Notary"
 
 [dependencies]
 serde.workspace = true
@@ -22,5 +22,5 @@ proptest.workspace = true
 workspace = true
 
 [[bin]]
-name = "agora-verify"
-path = "src/bin/agora-verify.rs"
+name = "notary-verify"
+path = "src/bin/notary-verify.rs"

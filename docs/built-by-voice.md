@@ -1,6 +1,6 @@
 # Built by voice
 
-Agora Notary is entered in the **Code with Wispr** side track: it is built by dictating with
+Notary is entered in the **Code with Wispr** side track: it is built by dictating with
 [Wispr Flow](https://wisprflow.ai) instead of typing. This log records what was dictated, day by day,
 with the Wispr Insights scorecard at the end.
 

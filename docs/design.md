@@ -1,17 +1,17 @@
-# Agora Notary: design and build plan (approved Nov 4, 2026)
+# Notary: design and build plan (approved Nov 4, 2026)
 
 ## Context
 Ritesh is rebuilding Agora for the Flip the Switch Hackathon, which is powered by sandbox-quantum/switch. Submissions close **Nov 7, 23:59 IST**. The aim is to submit by **Nov 7, 20:00 IST**.
 
 They chose:
-- **Agora Notary** for Track 01, Best Business Workflow.
+- **Notary** for Track 01, Best Business Workflow.
 - A solo build with Claude.
 - A Track 03 core PR (#801) worked in parallel.
 - The Code with Wispr, Best Blog and #HowISwitch side prizes.
 
 Nine hours of Nov 4 were lost to a usage limit and a session restart. This plan starts at **Nov 4, 23:00 IST**.
 
-**What Agora Notary is:**
+**What Notary is:**
 - A Switch work-order desk. People file requests in a hub room.
 - A Claude Code builder and an OpenCode reviewer work in a separate work room.
 - A custom Rust **Notary** agent checks every claim they make against independent evidence before anything reaches the people. That evidence is git, its own sandboxed test run, and Switch's tool-activity log.
@@ -31,7 +31,7 @@ Nine hours of Nov 4 were lost to a usage limit and a session restart. This plan 
 
 ## 1. Success criteria (verifiable)
 1. `make demo-offline` runs from a clean clone with no model keys. It needs Docker or podman plus Rust. It brings up the pinned Switch and Mattermost and runs 7 scripted scenarios. It prints the expected verdict codes and exits 0, and the Notary's posts are visible in Mattermost.
-2. **Live run:** sam files WO-17 in `#acme-desk`. Claude Code fixes `acme-invoices` in `#acme-work`. The Notary bounces at least one bad claim with codes and evidence IDs. OpenCode reviews. priya approves through the card, and sam's attempt to approve is refused. A signed receipt is posted, and `agora-verify receipt.json` prints OK. Editing one byte makes it FAIL.
+2. **Live run:** sam files WO-17 in `#acme-desk`. Claude Code fixes `acme-invoices` in `#acme-work`. The Notary bounces at least one bad claim with codes and evidence IDs. OpenCode reviews. priya approves through the card, and sam's attempt to approve is refused. A signed receipt is posted, and `notary-verify receipt.json` prints OK. Editing one byte makes it FAIL.
 3. `cargo test` passes in CI, covering the judge fixtures, the ledger, signing, receipt verification and canonical JSON.
 4. The README has a "would it stop working without Switch" table and a prior-work disclosure. The video runs under 3 minutes. The blog, three #HowISwitch posts and the Wispr Insights screenshot are done.
 5. The #801 PR is opened against sandbox-quantum/switch with tests, a real-CLI summary and a video, by Nov 7.
@@ -54,23 +54,23 @@ Nine hours of Nov 4 were lost to a usage limit and a session restart. This plan 
 - The v1 template, which installs everything.
 - Agents from several providers: Claude Code, OpenCode, and our custom Rust agent.
 
-**Ours:** the `agora-notary` Rust agent, plus the template, scripts, sandbox image, demo repo and scripted test agents.
+**Ours:** the `notary` Rust agent, plus the template, scripts, sandbox image, demo repo and scripted test agents.
 
-**Rooms (template `templates/agora-desk.template.yaml`, v1, a group of two linked rooms):**
-- `acme-desk` (hub): Mattermost users sam (requester) and priya (approver), plus `agora-notary`. **The builder and reviewer are never members**, so unchecked words can't reach people. The gate is built from room topology.
-- `acme-work` (private): `acme-builder` (Claude Code), `acme-reviewer` (OpenCode), `agora-notary`.
+**Rooms (template `templates/notary-desk.template.yaml`, v1, a group of two linked rooms):**
+- `acme-desk` (hub): Mattermost users sam (requester) and priya (approver), plus `notary`. **The builder and reviewer are never members**, so unchecked words can't reach people. The gate is built from room topology.
+- `acme-work` (private): `acme-builder` (Claude Code), `acme-reviewer` (OpenCode), `notary`.
   - Aliases `builder` and `reviewer` point at those agents.
   - Template docs: **Desk Policy** (human text plus a fenced `notary-policy/1` JSON block holding approvers, the acceptance argv, protected paths and max bounces) and **Reporting Contract** (the `notary-claims/1` format).
   - The Notary reads the policy from Switch at intake and records its content hash in the ledger, so the policy lives in the room.
 
 **Data flow for one work order:**
-1. sam posts `@agora-notary new Globex invoices over $10k show wrong tax` in the hub. The Notary receives it over WebSocket (`filter=all`).
+1. sam posts `@notary new Globex invoices over $10k show wrong tax` in the hub. The Notary receives it over WebSocket (`filter=all`).
 2. The Notary does three things:
    - Fetches the repo and records `base` = the `main` SHA.
    - Loads Desk Policy (`connect_to_room` → `documents`, then `load_internal_documents`).
    - Creates a room doc `WO-17` in the work room (`create_room_document`).
    It then addresses `builder` with `send_targeted_message(target_names=["builder"])` and posts a one-line status to the hub.
-3. Claude Code works in its Console checkout, pushes branch `wo-17` to the demo repo, and reports to `@agora-notary` with a ```` ```notary-claims ```` JSON block.
+3. Claude Code works in its Console checkout, pushes branch `wo-17` to the demo repo, and reports to `@notary` with a ```` ```notary-claims ```` JSON block.
 4. The Notary collects evidence:
    - **git:** fetch into its mirror; `cat-file`; `merge-base --is-ancestor`; `diff --name-only base...sha`.
    - **notary_run:** a podman sandbox re-runs the Desk Policy argv at the SHA.
@@ -114,10 +114,10 @@ Nine hours of Nov 4 were lost to a usage limit and a session restart. This plan 
 - **Template docs** have no creator, so the Notary can't edit them. The Notary creates its own docs (WO-N, receipts, Desk Status).
 
 ## 3. Repository
-New public repo **`Ritesh-Root/agora-notary`** at `/home/ritesh/Documents/Flip the Switch Hackathon/agora-notary` (MIT). A second small public repo, **`Ritesh-Root/acme-invoices`**, holds the demo repo. Console's `repo:` accepts only https/ssh URLs.
+New public repo **`Ritesh-Root/notary`** at `/home/ritesh/Documents/Flip the Switch Hackathon/notary` (MIT). A second small public repo, **`Ritesh-Root/acme-invoices`**, holds the demo repo. Console's `repo:` accepts only https/ssh URLs.
 
 ```
-agora-notary/
+notary/
   Cargo.toml, clippy.toml        # from agora-rs: edition 2024, rust 1.99, unsafe forbid, clippy all=deny, deps pinned with =
   crates/notary-core/            # pure, no I/O except SQLite
     ids.rs        canonical JSON (serde_json Value, sorted keys, no floats/ints >2^53) + content_id("ev"|"vd")
@@ -127,10 +127,10 @@ agora-notary/
     claims.rs     notary-claims/1 parser (strict JSON, deny_unknown_fields, caps: block ≤16 KiB, ≤40 claims)
     judge.rs      pure judge(report, policy, &[Evidence]) -> Audit; next() -> Bounce | ReadyForApproval | Escalate
     ledger.rs     LIFTED from agora-rs ledger.rs (chain, verify_chain, verify_head); salt/forget dropped; UNIQUE(run, record)
-    signing.rs    LIFTED from agora-rs signing.rs (ed25519 verify_strict, 0600 key); domain "agora notary signed head v1"
+    signing.rs    LIFTED from agora-rs signing.rs (ed25519 verify_strict, 0600 key); domain "notary signed head v1"
     render.rs     bounce block, hub line, receipt doc, show pages (code-written text, never builder prose)
     receipt.rs    ReceiptBundle{head, entries, records}; verify = re-hash records → chain → head/count → signature
-    bin/agora-verify.rs
+    bin/notary-verify.rs
   crates/notary/                 # the agent binary
     config.rs     env parsed once; invalid value → configuration_invalid (no default fallbacks for engine/transport/approval mode)
     switch/       ws.rs (stream + ping task), http.rs (message, ops, media, approvals, outcomes), gateway.rs (login, activity)
@@ -140,7 +140,7 @@ agora-notary/
     main.rs       `notary run | doctor | register`
     tests/e2e.rs  scripted agents over the Switch HTTP path (#[ignore], run by make e2e)
   sandbox/        Containerfile (python:3.12-slim + acme-invoices deps baked in) + notary-run.py (~30 lines, writes result.json)
-  templates/      agora-desk.template.yaml, rooms-only variant (for the no-Console path)
+  templates/      notary-desk.template.yaml, rooms-only variant (for the no-Console path)
   scripts/        fetch-switch.sh, up.sh, register.sh, install-template.sh, add-users.sh, policies.sh (bash, quote every path)
   demo/acme-invoices/   source of the demo repo (also seeded as a local bare repo for offline/CI)
   docs/design.md, docs/trust-model.md, docs/built-by-voice.md, samples/receipt-wo-17.json
@@ -151,7 +151,7 @@ agora-notary/
 **What is lifted from agora-rs**, all disclosed in the README:
 - `crates/agora-engine/src/ledger.rs`: chain, verify, verify_head and 6 tests.
 - `signing.rs`: whole, with 2 tests.
-- `bin/agora-verify.rs`: the `check_receipt` logic.
+- `bin/notary-verify.rs`: the `check_receipt` logic.
 - The workspace lints and dependency pins.
 - From `alibi.rs` and `guard.rs`, only ideas: the Verdict/Audit shape, `MAX_REVISIONS=2`, code-written corrections and failing closed.
 - One deliberate change: **absence of evidence means unverified, not contradicted**. Only git, after a successful fetch, can contradict because something is absent.
@@ -192,9 +192,9 @@ The builder's message ends with exactly one block:
 
 **`make up` does the following:**
 1. `scripts/fetch-switch.sh` downloads the pinned standalone-compose blob from GHCR by digest `sha256:cba23887…0121`, verifies the hash, and qualifies short image names (`docker.io/library/postgres`, `docker.io/mattermost/…`). Switch's compose is not vendored, because it uses the Commons Clause licence.
-2. It writes `.env` with generated secrets, plus `SWITCH_VERSION=0.31.0`, `FRONTEND_BASE_URL=http://localhost:8000` and `COMPOSE_PROJECT_NAME=agora`.
+2. It writes `.env` with generated secrets, plus `SWITCH_VERSION=0.31.0`, `FRONTEND_BASE_URL=http://localhost:8000` and `COMPOSE_PROJECT_NAME=notary`.
 3. It runs `docker compose -f infra/compose.yml --profile collab up -d`, waits for `setup` to log "Setup complete!", then checks `curl /health`.
-4. `register.sh` logs in, creates an API key, `POST /agents` the Notary, and stores the key at `~/.config/agora-notary/agent.json` (0600).
+4. `register.sh` logs in, creates an API key, `POST /agents` the Notary, and stores the key at `~/.config/switch-notary/agent.json` (0600).
 5. `add-users.sh` creates Mattermost users priya and sam through the MM API and adds them to the team.
 6. `install-template.sh` validates and installs the template. On the live path, the template is applied once through the Console UI. On the no-Console path, the script posts the rooms-only YAML to `/gateway/rooms/from-yaml`. It then adds priya and sam to the hub, sets the Notary's addressing policy (owner; builder and reviewer in the work room; any user in the hub), and adds the admin member client to the work room so activity can be read.
 7. `make sandbox-image` builds the image and records its digest in `.env`.
@@ -203,7 +203,7 @@ The builder's message ends with exactly one block:
 - `make doctor` runs `notary doctor`, which checks Switch health, the key, room membership, git reachability, the sandbox image, and that activity is readable. Every failure comes back as a tagged code with a remediation.
 - **Judges on a Docker box:** the same commands with `NOTARY_SANDBOX_ENGINE=docker`. On macOS arm64, the Mattermost image is amd64-only, so emulation is slow. The README says so.
 - **Three ways in:** `make verify-sample` (no infrastructure) → `make demo-offline` (no keys) → live (Console + Claude Code + OpenCode logins, and a fork of acme-invoices set in the template param).
-- **Paths:** never interpolate the project path unquoted. The sandbox works under `~/.cache/agora-notary/runs/<run_id>`.
+- **Paths:** never interpolate the project path unquoted. The sandbox works under `~/.cache/notary/runs/<run_id>`.
 
 ## 6. Spikes, tonight (Nov 4, 23:00 → ~02:30)
 Each spike has a go/no-go check. Every fallback is an explicit config value, never automatic.
@@ -219,7 +219,7 @@ Each spike has a go/no-go check. Every fallback is an explicit config value, nev
 Also tonight, each of these needs the user's go-ahead because it is outward-facing:
 - Create both GitHub repos.
 - Post the #801 claim comment (draft is ready; #801 has 9 of a maximum 10 assignees).
-- Pin `@agora-notary` agent naming.
+- Pin `@notary` agent naming.
 
 ## 7. Schedule (IST)
 
@@ -232,7 +232,7 @@ Keep subagent fan-out small. A big workflow is what cost us the 9 hours.
 | When | Lane A (Notary) | Lane B (#801) and side prizes |
 |---|---|---|
 | Wed 23:00–02:30 | Repos, skeleton, `make up`, spikes S0–S4 | Comment on #801. Fork and baseline build (Node 24.14 / pnpm 11.5.3; core with testcontainers over the podman socket) |
-| Thu 09:00–13:00 | notary-core: ids, evidence, errors, claims, judge plus 14 fixtures (7 scenarios + honest twins), ledger/signing lift, receipt + agora-verify | B: steps 1–2 (capability advertising, session-host steer, fence) |
+| Thu 09:00–13:00 | notary-core: ids, evidence, errors, claims, judge plus 14 fixtures (7 scenarios + honest twins), ledger/signing lift, receipt + notary-verify | B: steps 1–2 (capability advertising, session-host steer, fence) |
 | Thu 14:00–19:00 | notary: Switch client (WebSocket, ops, docs, approvals, gateway activity), git, sandbox, desk state machine, commands | B: steps 3–4 (room rule `roomDelivery`, core `sender_owns_agent`) |
 | Thu 19:00–24:00 | acme-invoices with the trap (a tax fix passes `test_tax` but breaks `test_reports`), template, scripts. **First live run.** #HowISwitch post 1: a Rust agent puts an approval card in Mattermost | B: steps 5–6 (desktop setting + migration, card marking) |
 | Fri 09:00–13:00 | `tests/e2e.rs` with 7 scripted scenarios against real compose; `make demo-offline`; CI ci.yml + e2e.yml | B: steps 7–8 (Console chat, docs, CHANGELOG), full local test suites |
@@ -284,7 +284,7 @@ Keep subagent fan-out small. A big workflow is what cost us the 9 hours.
 **Never cut:**
 - The hub/work-room gate.
 - git plus the re-run as evidence.
-- The signed receipt and `agora-verify`.
+- The signed receipt and `notary-verify`.
 - `make up` and `demo-offline`.
 - Unit tests, README and video.
 
@@ -302,7 +302,7 @@ Keep subagent fan-out small. A big workflow is what cost us the 9 hours.
 | 1:30 | OpenCode reviews. |
 | 1:45 | Hub: one line plus a card. sam tries to approve and is refused; priya approves. |
 | 2:05 | Signed receipt; head hash in the room log. |
-| 2:20 | Terminal: `agora-verify` OK; a one-byte edit FAILs; `make demo-offline` green with no keys. |
+| 2:20 | Terminal: `notary-verify` OK; a one-byte edit FAILs; `make demo-offline` green with no keys. |
 | 2:40 | "Without Switch" slide. |
 | 2:55 | Repo, #HowISwitch, built by voice. |
 
@@ -335,7 +335,7 @@ If the live Claude Code run doesn't overclaim, use the scripted liar, labelled o
 ## 12. Verification before submitting
 1. `cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test`, with output shown.
 2. A fresh clone into a path **without** spaces and one **with** spaces: `make verify-sample`, then `make up && make demo-offline`. All 7 scenarios report their expected codes.
-3. A live run end to end, matching success criterion 2. Save the receipt, then `agora-verify` it, edit it, and confirm the failure.
+3. A live run end to end, matching success criterion 2. Save the receipt, then `notary-verify` it, edit it, and confirm the failure.
 4. `e2e.yml` green on GitHub (Docker engine).
 5. `semgrep scan --config p/default --metrics off crates/` and `gitleaks`, both clean.
 6. Video under 3:00 and plays; README links work; blog published; Insights screenshot saved; #801 PR open with CI started.

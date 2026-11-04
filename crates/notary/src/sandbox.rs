@@ -14,8 +14,8 @@ use tokio::process::Command;
 
 use crate::git::Mirror;
 
-const OWNER_LABEL: &str = "io.agora-notary.owner";
-const RUN_LABEL: &str = "io.agora-notary.run";
+const OWNER_LABEL: &str = "io.switch-notary.owner";
+const RUN_LABEL: &str = "io.switch-notary.run";
 const MAX_RESULT: u64 = 64 * 1024;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

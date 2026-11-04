@@ -1,2 +1,2 @@
 # Ed25519 public keys and signatures in signed receipts are public by design.
-samples/receipt-wo-7.json:generic-api-key:8
+samples/receipt-wo-1.json:generic-api-key:8

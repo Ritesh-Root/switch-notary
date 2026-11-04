@@ -6,7 +6,7 @@
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-NAME="${NOTARY_AGENT_NAME:-agora-notary}"
+NAME="${NOTARY_AGENT_NAME:-notary}"
 KEY_FILE="$STATE_DIR/agent.json"
 
 if [[ -f "$KEY_FILE" ]]; then
@@ -19,12 +19,12 @@ if [[ -f "$KEY_FILE" ]]; then
 fi
 
 gateway_login
-REG_KEY="$(gw POST /api-keys '{"label":"agora-notary"}' | json 'd["key"]')"
+REG_KEY="$(gw POST /api-keys '{"label":"notary"}' | json 'd["key"]')"
 
 BODY="$(NAME="$NAME" python3 -I -c 'import json,os; print(json.dumps({
   "name": os.environ["NAME"], "display_name": "Notary",
   "description": "Checks every claim agents make against git, its own test run and Switch tool activity before people see it",
-  "connector_type": "agora-notary",
+  "connector_type": "notary",
   "integration_profile": {"connection_model": "always_on", "message_exchange": True,
     "pre_invocation_mediation": [], "post_invocation_mediation": [], "event_reporting": []},
   "tools": [], "models": [], "metadata": {}, "overwrite": True}))')"

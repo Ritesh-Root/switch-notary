@@ -6,7 +6,7 @@ members = ["crates/notary-core", "crates/notary"]
 edition = "2024"
 rust-version = "1.99"
 license = "MIT"
-repository = "https://github.com/Ritesh-Root/agora-notary"
+repository = "https://github.com/Ritesh-Root/switch-notary"
 
 [workspace.dependencies]
 notary-core = { path = "crates/notary-core" }

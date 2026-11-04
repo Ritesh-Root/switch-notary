@@ -1,4 +1,4 @@
-//! `agora-verify receipt.json [--key <hex>]`: check a Notary receipt offline.
+//! `notary-verify receipt.json [--key <hex>]`: check a Notary receipt offline.
 //! Exit 0 and one OK line if every record re-hashes, the chain ends at the signed head and
 //! the signature holds; exit 1 and the reason otherwise. Logic from agora-rs's agora-verify,
 //! changed to check a self-contained bundle instead of a database.
@@ -14,14 +14,14 @@ fn main() {
         match a.as_str() {
             "--key" => key = it.next().cloned(),
             "-h" | "--help" => {
-                println!("usage: agora-verify <receipt.json> [--key <public key hex>]");
+                println!("usage: notary-verify <receipt.json> [--key <public key hex>]");
                 return;
             }
             other => path = Some(other.to_string()),
         }
     }
     let Some(path) = path else {
-        eprintln!("usage: agora-verify <receipt.json> [--key <public key hex>]");
+        eprintln!("usage: notary-verify <receipt.json> [--key <public key hex>]");
         std::process::exit(2);
     };
     let result = std::fs::read(&path)

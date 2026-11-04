@@ -251,7 +251,7 @@ mod tests {
     const SHA: &str = "3f9a2c1e0b7d4a5c6e8f9012345678901234abcd";
 
     fn message(block: &str) -> String {
-        format!("@agora-notary WO-17 ready.\n```notary-claims\n{block}\n```\nthanks")
+        format!("@notary WO-17 ready.\n```notary-claims\n{block}\n```\nthanks")
     }
 
     fn good() -> String {

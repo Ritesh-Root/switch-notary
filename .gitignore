@@ -8,3 +8,4 @@ target/
 .handoff/
 infra/notary.env
 .notary.pid
+__pycache__/

@@ -89,7 +89,7 @@ async fn run_once(
     let start_at = if position.is_empty() { "head".to_string() } else { serde_json::to_string(&position).map_err(|e| e.to_string())? };
     let ws_base = agent.base.replacen("http://", "ws://", 1).replacen("https://", "wss://", 1);
     let mut url = format!(
-        "{ws_base}/agents/{}/connection/ws?connection_id={}&scope=all&filter=all&protocol=9&protocol_accepts=4&client=agora-notary&client_version={}&start_at={}",
+        "{ws_base}/agents/{}/connection/ws?connection_id={}&scope=all&filter=all&protocol=9&protocol_accepts=4&client=switch-notary&client_version={}&start_at={}",
         agent.id,
         enc(connection_id),
         env!("CARGO_PKG_VERSION"),

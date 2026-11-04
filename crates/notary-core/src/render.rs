@@ -74,7 +74,7 @@ pub fn bounce(a: &Audit, audit_id: &str, max: u8, builder: &str) -> String {
         "audit": audit_id, "fix": fix, "unverified": unverified, "backed": backed,
     });
     format!(
-        "@{builder} {} bounced ({} of {max}): {} to fix. Report again with a new claims block; ask agora-notary `show {}` for the evidence.\n```notary-bounce\n{}\n```",
+        "@{builder} {} bounced ({} of {max}): {} to fix. Report again with a new claims block; ask notary `show {}` for the evidence.\n```notary-bounce\n{}\n```",
         a.wo,
         a.attempt,
         fix.len(),
@@ -126,7 +126,7 @@ pub fn hub_ready(wo: &str, builder: &Audit, reviewer: Option<&Audit>, flags: &[C
         format!("flagged: {}", flags.iter().map(ToString::to_string).collect::<Vec<_>>().join(", "))
     };
     format!(
-        "**{wo} ready for approval**: {}/{} claims backed at `{}` after {} report(s){review_note}; {flagged}. Ledger head `{}`. Details: room doc \"{wo} Receipt\", or `@agora-notary show {wo}`.",
+        "**{wo} ready for approval**: {}/{} claims backed at `{}` after {} report(s){review_note}; {flagged}. Ledger head `{}`. Details: room doc \"{wo} Receipt\", or `@notary show {wo}`.",
         backed.len(),
         builder.checked.len(),
         &builder.sha[..7.min(builder.sha.len())],
@@ -166,7 +166,7 @@ pub fn receipt_doc(wo: &str, audits: &[(&str, &Audit)], decision: &str, head: &s
     }
     let _ = write!(
         out,
-        "\n## Not verified\n{unverified}\n## Ledger\n- entries: {entries}\n- head: `{head}`\n- signed by: `{key}`\n\n## Check it yourself\nDownload `receipt-{}.json` from the hub and run `agora-verify receipt-{}.json`. It re-hashes every record, checks the chain ends at the signed head, and checks the signature. Change one byte and it fails.\n",
+        "\n## Not verified\n{unverified}\n## Ledger\n- entries: {entries}\n- head: `{head}`\n- signed by: `{key}`\n\n## Check it yourself\nDownload `receipt-{}.json` from the hub and run `notary-verify receipt-{}.json`. It re-hashes every record, checks the chain ends at the signed head, and checks the signature. Change one byte and it fails.\n",
         wo.to_lowercase(),
         wo.to_lowercase()
     );

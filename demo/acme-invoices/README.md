@@ -1,6 +1,6 @@
 # acme-invoices
 
-The demo repository for [Agora Notary](https://github.com/Ritesh-Root/agora-notary): a small invoicing
+The demo repository for [Notary](https://github.com/Ritesh-Root/switch-notary): a small invoicing
 package (tax rules and the monthly report finance reconciles against). Run the tests with `pytest -q`.
 
 Finance rules that matter here:

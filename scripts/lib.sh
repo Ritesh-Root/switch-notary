@@ -5,7 +5,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="$ROOT/infra/.env"
 SWITCH="${NOTARY_SWITCH_URL:-http://127.0.0.1:8000}"
 MM="${NOTARY_MATTERMOST_URL:-http://127.0.0.1:8065}"
-STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/agora-notary"
+STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/switch-notary"
 COOKIES="$STATE_DIR/gateway.cookies"
 
 die() { echo "error: $*" >&2; exit 1; }

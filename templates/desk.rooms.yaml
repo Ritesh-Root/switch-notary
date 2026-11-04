@@ -1,6 +1,6 @@
-# Agora Notary desk: the rooms half (a Switch group of two linked rooms).
+# Notary desk: the rooms half (a Switch group of two linked rooms).
 # scripts/install.sh posts this to /gateway/rooms/from-yaml for the keyless demo; the Console
-# template (agora-desk.template.yaml) creates the same rooms together with the Claude Code and
+# template (notary-desk.template.yaml) creates the same rooms together with the Claude Code and
 # OpenCode agents.
 version: 1
 params:
@@ -19,7 +19,7 @@ params:
   notary:
     type: string
     description: The Notary agent's name (registered by scripts/register.sh)
-    default: agora-notary
+    default: notary
 group:
   name: "{team} desk"
   description: Requests and approvals in the desk; agents work in the work room; the Notary checks everything in between
