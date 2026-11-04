@@ -20,3 +20,7 @@ proptest.workspace = true
 
 [lints]
 workspace = true
+
+[[bin]]
+name = "agora-verify"
+path = "src/bin/agora-verify.rs"
