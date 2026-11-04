@@ -27,6 +27,8 @@ pub struct RoomMessage {
     /// `user`, `agent`, `platform`, or empty.
     pub sender_kind: String,
     pub addressed: bool,
+    /// Switch wrote this itself (e.g. an "agent is offline" auto-reply): never a report.
+    pub notice: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -177,6 +179,7 @@ fn room_message(data: &Value) -> Option<RoomMessage> {
         sender_name: s("sender_name"),
         sender_kind: s("sender_kind"),
         addressed: p.get("addressed").and_then(Value::as_bool).unwrap_or(false),
+        notice: p.get("switch_notice").is_some_and(|v| !v.is_null() && v != &Value::Bool(false)),
     })
 }
 

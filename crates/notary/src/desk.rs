@@ -32,6 +32,7 @@ const BASE_BRANCH: &str = "main";
 #[derive(Debug, Clone)]
 struct WorkOrder {
     wo: String,
+    created_ms: i64,
     requester: String,
     title: String,
     base: String,
@@ -119,6 +120,33 @@ impl Desk {
         self.agent.op(op, args, Some(&self.connection)).await.map_err(up)
     }
 
+    /// Create a room document, or update ours if one with that name already exists
+    /// (the Notary can edit only documents it created; Switch enforces that).
+    async fn put_doc(&self, room: &str, name: &str, description: &str, instructions: &str, content: &str) -> Result<(), NotaryError> {
+        let args = json!({"name": name, "description": clip(description, 200), "instructions": instructions, "content": content});
+        match self.in_room(room, "create_room_document", &args).await {
+            Ok(_) => Ok(()),
+            Err(e) if e.detail.contains("already exists") => {
+                let up = |e: crate::switch::SwitchError| NotaryError::new(Code::UpstreamUnavailable, e.to_string());
+                let info = self
+                    .agent
+                    .op("connect_to_room", &json!({"room_id": room, "include_general_instructions": false}), Some(&self.connection))
+                    .await
+                    .map_err(up)?;
+                let id = info
+                    .get("documents")
+                    .and_then(Value::as_array)
+                    .and_then(|d| d.iter().find(|d| d.get("name").and_then(Value::as_str) == Some(name)))
+                    .and_then(|d| d.get("id").and_then(Value::as_str))
+                    .ok_or_else(|| NotaryError::new(Code::UpstreamUnavailable, format!("document {name} exists but isn't listed")))?;
+                let mut update = args;
+                update["document_id"] = json!(id);
+                self.agent.op("update_room_document", &update, Some(&self.connection)).await.map(|_| ()).map_err(up)
+            }
+            Err(e) => Err(e),
+        }
+    }
+
     async fn load_policy(&self) -> Result<(Policy, String), NotaryError> {
         let up = |e: crate::switch::SwitchError| NotaryError::new(Code::UpstreamUnavailable, e.to_string());
         let room = self
@@ -166,10 +194,11 @@ impl Desk {
             attempts: u8::try_from(r.get::<_, i64>(7)?).unwrap_or(u8::MAX),
             builder_audit: r.get(8)?,
             approval: r.get(9)?,
+            created_ms: r.get(10)?,
         })
     }
 
-    const COLS: &'static str = "wo, requester, title, base, branch, policy, state, attempts, builder_audit, approval";
+    const COLS: &'static str = "wo, requester, title, base, branch, policy, state, attempts, builder_audit, approval, created_ms";
 
     fn find_wo(&self, clause: &str, arg: &str) -> Option<WorkOrder> {
         self.db
@@ -190,7 +219,7 @@ impl Desk {
     // ---------- events ----------
 
     pub async fn on_message(&mut self, m: RoomMessage) {
-        if !self.first_time(&m.message_id) {
+        if m.notice || !self.first_time(&m.message_id) {
             return;
         }
         if m.room_id == self.cfg.hub_room && m.addressed && m.sender_kind != "agent" {
@@ -266,7 +295,7 @@ impl Desk {
             self.cfg.repo_name,
             policy.max_bounces
         );
-        let created = self.in_room(&self.cfg.work_room, "create_room_document", &json!({"name": wo, "description": clip(&format!("Work order: {title}"), 200), "instructions": "Read before working on this work order.", "content": doc})).await;
+        let created = self.put_doc(&self.cfg.work_room, &wo, &format!("Work order: {title}"), "Read before working on this work order.", &doc).await;
         if let Err(e) = created {
             eprintln!("notary: couldn't create the {wo} document: {e}");
         }
@@ -385,20 +414,29 @@ impl Desk {
     async fn on_report(&mut self, m: &RoomMessage, stage: Stage) {
         let work = self.cfg.work_room.clone();
         let want = if stage == Stage::Builder { "building" } else { "reviewing" };
-        let Some(mut w) = self.find_wo("state = ?1", want) else {
+        let parsed = claims::parse(&m.body);
+        // The report names its work order; without a valid block, answer about the newest open one.
+        let wo_named = parsed.as_ref().ok().map(|r| r.wo.to_uppercase());
+        let found = match &wo_named {
+            Some(wo) => self.find_wo("wo = ?1", wo),
+            None => self.find_wo("state = ?1", want),
+        };
+        let Some(mut w) = found else {
+            if let Some(wo) = wo_named {
+                self.say(&work, &format!("@{} `block_invalid`: there is no work order {}.", m.sender_name, defuse(&wo))).await;
+            }
             return;
         };
-        let report = match claims::parse(&m.body) {
-            Ok(r) if r.wo.eq_ignore_ascii_case(&w.wo) => r,
-            Ok(r) => {
-                return self
-                    .say(
-                        &work,
-                        &format!("@{} `block_invalid`: this report is for {} but the open work order is {}.", m.sender_name, defuse(&r.wo), w.wo),
-                    )
-                    .await;
-            }
+        if w.state != want {
+            return self.say(&work, &format!("@{} {} is {}, not waiting for a {:?} report.", m.sender_name, w.wo, w.state, stage)).await;
+        }
+        let report = match parsed {
+            Ok(r) => r,
             Err(e) => {
+                // One reminder per attempt: never ping-pong with an agent (or an auto-reply) that keeps not reporting.
+                if !self.first_time(&format!("remind:{}:{}", w.wo, w.attempts)) {
+                    return;
+                }
                 let meta = e.code.meta();
                 return self
                     .say(&work, &format!("@{} {}: `{}`: {} ({})", m.sender_name, w.wo, e.code, meta.remediation, defuse(&clip(&e.detail, 300))))
@@ -618,7 +656,7 @@ impl Desk {
                 .activity(&self.cfg.work_room)
                 .await
                 .map_err(|e| NotaryError::new(Code::UpstreamUnavailable, e.to_string()))
-                .map(|rows| latest_tool_rows(rows, &id)),
+                .map(|rows| latest_tool_rows(rows, &id, w.created_ms)),
             _ => Err(NotaryError::new(Code::UpstreamUnavailable, format!("{agent} isn't a participant of the work room"))),
         };
         let limitations = vec![
@@ -747,7 +785,7 @@ impl Desk {
         let mut ordered: Vec<(&str, &Audit)> = audits.iter().map(|(id, a)| (id.as_str(), a)).collect();
         ordered.sort_by_key(|(_, a)| (a.stage == Stage::Reviewer, a.attempt));
         let doc = render::receipt_doc(&w.wo, &ordered, &format!("approved by {by}"), &head.head, &head.key, head.entries);
-        if let Err(e) = self.in_room(&hub, "create_room_document", &json!({"name": format!("{} Receipt", w.wo), "description": clip(&w.title, 200), "instructions": "The Notary's signed receipt for this work order.", "content": doc})).await {
+        if let Err(e) = self.put_doc(&hub, &format!("{} Receipt", w.wo), &w.title, "The Notary's signed receipt for this work order.", &doc).await {
             eprintln!("notary: couldn't create the receipt document: {e}");
         }
         if let Err(e) = self.agent.upload(&hub, &file, "application/json", json, &format!("{} receipt (agora-notary-receipt/1)", w.wo)).await {
@@ -769,10 +807,12 @@ impl Desk {
     }
 }
 
-/// The latest revision of each tool call this agent made, oldest first.
-fn latest_tool_rows(rows: Vec<crate::switch::gateway::ActivityRow>, agent_id: &str) -> Vec<Row> {
+/// The latest revision of each tool call this agent made since `since_ms` (the work order opened), oldest first.
+/// Older rows belong to other work orders and must not back this one's claims.
+fn latest_tool_rows(rows: Vec<crate::switch::gateway::ActivityRow>, agent_id: &str, since_ms: i64) -> Vec<Row> {
     let mut latest: BTreeMap<(String, String, String), crate::switch::gateway::ActivityRow> = BTreeMap::new();
-    for r in rows.into_iter().filter(|r| r.agent_id == agent_id && r.kind == "tool-activity") {
+    let recent = |r: &crate::switch::gateway::ActivityRow| iso_ms(&r.occurred_at).is_some_and(|t| t >= since_ms);
+    for r in rows.into_iter().filter(|r| r.agent_id == agent_id && r.kind == "tool-activity" && recent(r)) {
         let key = (r.session_id.clone(), r.turn_id.clone(), r.item_id.clone());
         if latest.get(&key).is_none_or(|old| r.revision >= old.revision) {
             latest.insert(key, r);
@@ -781,6 +821,25 @@ fn latest_tool_rows(rows: Vec<crate::switch::gateway::ActivityRow>, agent_id: &s
     let mut v: Vec<_> = latest.into_values().collect();
     v.sort_by(|a, b| a.occurred_at.cmp(&b.occurred_at));
     v.into_iter().map(|r| Row { title: r.title, status: r.status }).collect()
+}
+
+/// Milliseconds since the epoch for an ISO-8601 UTC timestamp like `2026-11-04T17:35:27.628558Z`.
+fn iso_ms(stamp: &str) -> Option<i64> {
+    let (date, clock) = stamp.trim_end_matches('Z').split_once('T')?;
+    let mut ymd = date.split('-').map(str::parse::<i64>);
+    let (year, month, day) = (ymd.next()?.ok()?, ymd.next()?.ok()?, ymd.next()?.ok()?);
+    let (hms, frac) = clock.split_once('.').unwrap_or((clock, "0"));
+    let mut parts = hms.split(':').map(str::parse::<i64>);
+    let (hours, minutes, seconds) = (parts.next()?.ok()?, parts.next()?.ok()?, parts.next()?.ok()?);
+    let millis: i64 = format!("{:0<3}", frac.chars().take_while(char::is_ascii_digit).take(3).collect::<String>()).parse().ok()?;
+    // Days from civil (Howard Hinnant).
+    let shifted = if month <= 2 { year - 1 } else { year };
+    let era = shifted.div_euclid(400);
+    let yoe = shifted - era * 400;
+    let doy = (153 * (if month > 2 { month - 3 } else { month + 9 }) + 2) / 5 + day - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    let days = era * 146_097 + doe - 719_468;
+    Some((days * 86_400 + hours * 3600 + minutes * 60 + seconds) * 1000 + millis)
 }
 
 /// `@switch-mattermost-<bridge uuid>-<username>:<server>` → `username`.
@@ -795,6 +854,14 @@ fn username_of(participant: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn iso_timestamps_parse_to_epoch_millis() {
+        assert_eq!(iso_ms("1970-01-01T00:00:00Z"), Some(0));
+        assert_eq!(iso_ms("2026-11-04T17:35:27.628558Z"), Some(1_793_813_727_628));
+        assert_eq!(iso_ms("2024-02-29T12:00:00.5Z"), Some(1_709_208_000_500));
+        assert_eq!(iso_ms("not a date"), None);
+    }
 
     #[test]
     fn approvers_are_read_from_switch_participant_ids() {
