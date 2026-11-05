@@ -214,8 +214,9 @@ plus a four-step progress bar) and **Receipts** (verified/fails, ledger, downloa
 with one chip per claim: backed ✓ green, contradicted ✕ red, unverified ? gold dashed outline, so state is
 never shown by colour alone. Clicking a work order opens its ledger in a dialog. Under 1100 px it switches to tabs.
 
-Palette: Midnight Black `#08090B` (background), Pure White `#F5F3EF` (text), Vibrant Golden Yellow `#FFC900`
-(the Notary's own messages, anything waiting on a person, focus rings). Source Serif 4 for the wordmark and
+Palette: Pure White `#F5F3EF` (background), Midnight Black `#08090B` (text, people's avatars), Vibrant Golden
+Yellow `#FFC900` (the Notary's own messages, anything waiting on a person); gold used as text is darkened to
+`#7D6000` so it stays readable on white. Source Serif 4 for the wordmark and
 numbers, Inter for text, JetBrains Mono for IDs and code (Google Fonts, with system fallbacks).
 
 ## 7. Gaps worth closing for a richer front end (small backend additions)
