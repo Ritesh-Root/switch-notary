@@ -94,7 +94,29 @@ login, localhost only, and nothing in it changes state. Everything below comes f
   where `timestamp` is in ms. If a room can't be read, the list holds one message from `sender_name: "viewer"`
   that explains why.
 
-### `GET /api/ledger/{WO-N}`: the evidence trail of one work order
+### `GET /api/wo/{WO-N}`: one work order's whole case file (the page uses this)
+```json
+{"wo": "WO-2",
+ "order": {"wo": "WO-2", "title": "Liar: …", "requester": "sam", "state": "awaiting_approval", "attempts": 3,
+           "base": "de3922b4…", "branch": "wo-2", "created_ms": 1793830326796},
+ "chain": {"ok": true, "entries": 19},
+ "entries": [{"seq": 1, "at_ms": …, "kind": "policy", "record": "po_fa7d…", "prev": "0000…", "hash": "…"}, …],
+ "records": {"po_fa7d…": {"protocol": "notary-intake/1", "policy": {"approvers": ["priya"], "acceptance": ["pytest", "-q"], "max_bounces": 2, …}, …},
+             "rp_30a3…": {"agent": "demo-builder", "report": {"claims": [{"id": "c3", "kind": "tests_passed", "command": "pytest -q"}, …]}},
+             "ev_836f…": {"authority": "notary_run", "operation": "notary_test_run", "result": {"collected": 18, "passed": 17, "failed": 1, "failed_ids": […]}, …},
+             "au_af99…": {"stage": "builder", "attempt": 1, "report": "rp_30a3…",
+                          "checked": [{"claim": "c3", "kind": "tests_passed", "verdict": "contradicted", "code": "tests_failed", "evidence": ["ev_836f…"], "facts": {…}}, …],
+                          "findings": []},
+             "dc_…": {"by": "sam", "answer": "approve", "counted": false}},
+ "codes": {"tests_failed": {"fixer": "builder", "retryable": true, "remediation": "Fix the listed tests; …"}, …}}
+```
+- The same entries and records a receipt holds, read live from the ledger, so it works before approval too.
+- Every `checked` item carries `verdict` (`backed` | `contradicted` | `unverified`); no code table needed.
+- `codes` explains every code in the audits, plus `revision_limit` and `not_an_approver`.
+- `chain` is `{"ok": false, "error": "broken at entry N: …"}` if the ledger was tampered with.
+- 400 for a malformed ID, 404 for an unknown work order.
+
+### `GET /api/ledger/{WO-N}`: the evidence trail of one work order, as text
 ```json
 {"wo": "WO-1", "chain": "13 entries, chain intact", "lines": [
   "1. `po_d6e111c7b8a` intake + Desk Policy",
@@ -201,29 +223,37 @@ Plain-text desk lines worth recognising: `**WO-N ready for approval**: …`, `**
 - **Same origin.** The server sends no CORS headers. Either serve the front end from the Notary (the
   current page is compiled in from `crates/notary/src/viewer.html`), or proxy `/api` and `/receipts` from
   your dev server (e.g. Vite's `server.proxy` → `http://127.0.0.1:8090`).
-- **Polling.** There's no push stream. The current page polls `/api/state` every 2.5 s and re-renders
-  only when the response text changes.
+- **Polling.** There's no push stream. The current page polls `/api/state` (and the open work order's
+  `/api/wo/{WO-N}`) every 2.5 s and re-renders only when a response changes.
 - **Untrusted text.** Message bodies come from AI agents: escape everything, and never inject a body as HTML.
 - **Sizes.** At most 120 messages per room and 50 work orders.
 
-## 6. What the current viewer shows (the baseline to beat)
+## 6. What the current front end shows
 
-A header shows counts (work orders, to approve, signed receipts) and a live/offline indicator. Below it are
-three columns: the **Desk** feed, the **Work room** feed, and a side panel with **Work orders** (state badge
-plus a four-step progress bar) and **Receipts** (verified/fails, ledger, download). Blocks render as cards
-with one chip per claim: backed ✓ green, contradicted ✕ red, unverified ? gold dashed outline, so state is
-never shown by colour alone. Clicking a work order opens its ledger in a dialog. Under 1100 px it switches to tabs.
+The page at `/` (`crates/notary/src/viewer.html`, compiled into the binary; no build step) has two views:
+
+- **Work orders** (default). A rail lists every work order with its state and a progress bar. Selecting one
+  (or opening `/#WO-2`) shows its case file:
+  - a five-step track: Filed, Build (reports, bounces), Review, Approval, Receipt;
+  - one status line saying what it's waiting for and what's flagged;
+  - **Claims checked**: one tab per report; each claim shows what the agent said, the verdict, what Notary
+    found itself (git, its own test run, Switch's activity log) and what the code means;
+  - **Decisions**: every approve/hold press, including refused ones;
+  - **Receipt**: verified status, download, and the `notary-verify` output;
+  - **Evidence trail**: every ledger entry in plain words; open one for its raw record;
+  - **Conversation**: the messages from both rooms that mention this work order.
+- **Live rooms** (`/#rooms`): the Desk and Work room feeds side by side.
+
+Under 1100 px it becomes list → detail with a back link; the claims table stacks on phones.
+Chips show state with a symbol as well as colour: backed ✓ green, contradicted ✕ red, unverified ? gold dashed.
 
 Palette: Pure White `#F5F3EF` (background), Midnight Black `#08090B` (text, people's avatars), Vibrant Golden
 Yellow `#FFC900` (the Notary's own messages, anything waiting on a person); gold used as text is darkened to
 `#7D6000` so it stays readable on white. Source Serif 4 for the wordmark and
 numbers, Inter for text, JetBrains Mono for IDs and code (Google Fonts, with system fallbacks).
 
-## 7. Gaps worth closing for a richer front end (small backend additions)
+## 7. Still open
 
-All of these are cheap to add on the Rust side; ask and they can be built:
-- `GET /api/wo/{WO-N}`: one work order with its audits as structured JSON (per-claim verdict
-  backed/contradicted/unverified, codes, facts, evidence), so the UI doesn't parse message text.
-- `GET /api/evidence/{ev_…}`: one evidence record in full (authority, confidence, coverage, the raw result).
-- A `verdict` field on each `checked` item in `notary-verdict` blocks, so no code→colour table is needed.
+- `GET /api/evidence/{ev_…}` on its own (today it comes inside `/api/wo/{WO-N}`).
+- A `verdict` field on each `checked` item in `notary-verdict` chat blocks (the ledger audits already have it).
 - Server-sent events instead of polling.

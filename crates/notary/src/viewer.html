@@ -8,11 +8,12 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
+/* Layout: header, then work-order rail + case file (master/detail), or the two live rooms side by side. */
 :root{color-scheme:light;
 --black:#08090b;--white:#f5f3ef;--gold:#ffc900;
 --bg:var(--white);--surface:#fcfbf9;--raised:#eeebe5;--line:#e2ded6;--line-2:#cfcac0;
 --text:var(--black);--muted:#5c5850;--faint:#6b675f;--gold-ink:#7d6000;
---ok:#18794a;--ok-bg:rgba(24,121,74,.1);--bad:#bb2f25;--bad-bg:rgba(187,47,37,.09);--gold-bg:rgba(255,201,0,.09);
+--ok:#18794a;--ok-bg:rgba(24,121,74,.1);--bad:#bb2f25;--bad-bg:rgba(187,47,37,.09);--gold-bg:rgba(255,201,0,.12);
 --serif:"Source Serif 4",Georgia,"Times New Roman",serif;
 --sans:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;
 --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
@@ -24,183 +25,253 @@ body{display:flex;flex-direction:column;overflow:hidden;background:var(--bg);col
 code{font:12px var(--mono)}
 button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
 a{color:var(--gold-ink);text-decoration-color:var(--gold);text-decoration-thickness:2px;text-underline-offset:3px}
+[hidden]{display:none!important}
 
 /* header */
-.top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 32px;padding:16px 24px;border-bottom:1px solid var(--line)}
-.brand{display:flex;align-items:center;gap:12px}
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 32px;padding:14px 24px;border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit}
 .seal{width:32px;height:32px;border-radius:6px;background:var(--gold);color:var(--black);display:grid;place-items:center;font:600 20px/1 var(--serif)}
 h1{margin:0;font:600 24px/1 var(--serif);letter-spacing:-.01em}
 h1 span{font:500 13px var(--sans);color:var(--muted);letter-spacing:0;margin-left:4px}
 .stats{display:flex;gap:28px;margin:0}
 .stats div{display:flex;flex-direction:column-reverse}
 .stats dt{white-space:nowrap;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
-.stats dd{margin:0;font:600 22px/1.1 var(--serif)}
+.stats dd{margin:0;font:600 22px/1.1 var(--serif);font-variant-numeric:tabular-nums}
 .stats .gold dd{color:var(--gold-ink)}
+.views{display:flex;gap:4px;padding:4px;background:var(--surface);border:1px solid var(--line);border-radius:10px}
+.views a{padding:6px 14px;border-radius:7px;font-weight:600;font-size:13px;color:var(--muted);text-decoration:none}
+.views a[aria-current=page]{background:var(--black);color:var(--white)}
 .meta{margin-left:auto;display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;font-size:12px;color:var(--muted)}
 .live{display:inline-flex;align-items:center;gap:7px;color:var(--text);font-weight:500}
 .live::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 0 3px rgba(255,201,0,.3);animation:pulse 2s infinite}
 .live.down{color:var(--bad)}.live.down::before{background:var(--bad);box-shadow:none;animation:none}
 @keyframes pulse{50%{opacity:.35}}
 @media (prefers-reduced-motion:reduce){.live::before{animation:none}}
-.legend{display:flex;gap:12px}
+.legend{display:flex;gap:8px}
+@media (max-width:1600px){.meta .ro{display:none}}
 
-/* tabs (narrow screens) */
-nav{display:none;gap:4px;margin:12px 16px 0;padding:4px;background:var(--surface);border:1px solid var(--line);border-radius:10px}
-nav button{flex:1;position:relative;padding:8px;border-radius:7px;font-weight:600;font-size:13px;color:var(--muted)}
-nav button[aria-selected=true]{background:var(--gold);color:var(--black)}
-nav button.new::after{content:"";position:absolute;top:7px;right:10px;width:7px;height:7px;border-radius:50%;background:var(--gold)}
+/* chips, badges, tags */
+.chip{display:inline-flex;align-items:center;gap:5px;font:12px/1.6 var(--mono);padding:0 7px;border-radius:4px;border:1px solid transparent;background:var(--raised);white-space:nowrap}
+.chip.ok{color:var(--ok);background:var(--ok-bg)}.chip.ok::before{content:"✓"}
+.chip.bad{color:var(--bad);background:var(--bad-bg)}.chip.bad::before{content:"✕"}
+.chip.warn{color:var(--gold-ink);background:var(--gold-bg);border:1px dashed #d9a800}.chip.warn::before{content:"?"}
+.badge{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:1px 7px;border-radius:4px;white-space:nowrap;color:var(--muted);border:1px solid var(--line-2)}
+.badge.wait{background:var(--gold);border-color:var(--gold);color:var(--black)}
+.badge.ok{color:var(--ok);background:var(--ok-bg);border-color:transparent}
+.badge.bad{color:var(--bad);background:var(--bad-bg);border-color:transparent}
+.tag{font:600 10.5px/1.6 var(--mono);text-transform:uppercase;letter-spacing:.06em;padding:0 6px;border-radius:4px;border:1px solid var(--line-2);color:var(--muted);white-space:nowrap}
+.tag.desk{background:var(--black);border-color:var(--black);color:var(--white)}
+.tag.bounce{background:var(--bad);border-color:var(--bad);color:#fff}
+.tag.verdict{background:var(--gold);border-color:var(--gold);color:var(--black)}
+.empty{padding:20px 16px;color:var(--muted);font-size:13px}
+.empty code,.muted code{color:var(--text)}
+.muted{color:var(--muted)}
 
-/* layout */
-main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 340px;gap:16px;padding:16px 24px 24px}
-section,.side>div{background:var(--surface);border:1px solid var(--line);border-radius:10px;display:flex;flex-direction:column;min-height:0;min-width:0}
-.side{gap:16px;background:none;border:0}
-.side>div:first-child{flex:1 1 0}.side>div:last-child{flex:0 1 auto;max-height:45%}
-h2{flex:none;display:flex;align-items:baseline;gap:10px;margin:0;padding:12px 16px;border-bottom:1px solid var(--line);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.08em}
-h2 em{font-style:normal;font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-h2 .n{margin-left:auto;font:12px var(--mono);color:var(--muted);letter-spacing:0}
-.feed,.list{flex:1;min-height:0;overflow:auto}
-.feed{padding:8px 0}
-@media (max-width:1100px){
-  nav{display:flex}
-  .top{padding:14px 16px;gap:12px 24px}
-  main{grid-template-columns:minmax(0,1fr);padding:12px 16px 16px}
-  main>section:not(.on){display:none}
-}
-@media (max-width:760px){.top{display:grid;grid-template-columns:minmax(0,1fr) auto}.meta{margin:0;grid-area:1/2}.meta .legend,.meta .ro{display:none}
-  .stats{grid-column:1/-1;gap:24px}.stats dd{font-size:20px}}
+/* panels */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;display:flex;flex-direction:column;min-height:0;min-width:0}
+.panel>h2{flex:none;display:flex;align-items:baseline;gap:10px;margin:0;padding:12px 16px;border-bottom:1px solid var(--line);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.08em}
+.panel>h2 em{font-style:normal;font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.panel>h2 .n{margin-left:auto;font:12px var(--mono);color:var(--muted);letter-spacing:0}
+.scroll{flex:1;min-height:0;overflow:auto}
 
-/* messages */
-.msg{display:grid;grid-template-columns:32px minmax(0,1fr);gap:12px;padding:10px 16px;border-left:2px solid transparent}
-.msg.notary{background:var(--gold-bg);border-left-color:var(--gold)}
-.av{width:32px;height:32px;border-radius:7px;display:grid;place-items:center;font-weight:600;font-size:12px;background:var(--black);color:var(--white)}
-.av.notary{background:var(--gold);color:var(--black);font:600 18px/1 var(--serif)}
+/* work orders view */
+.cases{flex:1;min-height:0;display:grid;grid-template-columns:280px minmax(0,1fr);gap:16px;padding:16px 24px 24px}
+.row{display:block;width:100%;text-align:left;padding:12px 16px;border-top:1px solid var(--line);text-decoration:none;color:inherit;border-left:3px solid transparent}
+.row:first-child{border-top:0}
+.row:hover{background:var(--raised)}
+.row[aria-current=true]{background:var(--gold-bg);border-left-color:var(--gold)}
+.row>span{display:block}
+.row .a{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.row .id{font:600 13px var(--mono)}
+.row .id small{font:500 11px var(--sans);color:var(--ok);margin-left:6px}
+.row .b{margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .c{margin-top:2px;font-size:12px;color:var(--muted)}
+.bars{display:grid;grid-template-columns:repeat(4,1fr);gap:3px;margin-top:8px}
+.bars i{height:3px;border-radius:2px;background:var(--line-2)}
+.bars i.on{background:var(--gold)}.bars.done i.on{background:var(--ok)}.bars.held i.on{background:var(--bad)}
+
+/* case file */
+.case{overflow:auto;min-width:0}
+.case-in{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;padding:20px 24px 28px}
+@media (min-width:1400px){.case-in{grid-template-columns:minmax(0,1fr) 360px;align-items:start}.case-in .convo{grid-column:2;grid-row:1/span 9;position:sticky;top:0;max-height:calc(100vh - 140px)}}
+.case-in>*{min-width:0}
+.back{display:none;font-weight:600;font-size:13px;margin-bottom:8px}
+.eyebrow{margin:0 0 4px;font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center}
+.eyebrow b{font:600 12px var(--mono);color:var(--text)}
+.case .title{margin:0;font:600 26px/1.2 var(--serif);letter-spacing:-.01em;text-wrap:balance}
+.facts{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:10px;font-size:13px;color:var(--muted)}
+.facts b{font-weight:500;color:var(--text)}
+.track{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;border:1px solid var(--line);border-radius:10px;background:var(--surface);overflow:hidden}
+.track li{padding:12px 14px;border-left:1px solid var(--line);position:relative}
+.track li:first-child{border-left:0}
+.track li::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:var(--line-2)}
+.track li.done::before{background:var(--ok)}.track li.now::before{background:var(--gold)}.track li.fail::before{background:var(--bad)}
+.track b{display:flex;align-items:center;gap:6px;font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+.track b::before{font:600 12px var(--mono);width:16px;color:var(--faint);content:"·"}
+.track li.done b::before{content:"✓";color:var(--ok)}.track li.now b::before{content:"●";color:var(--gold-ink)}.track li.fail b::before{content:"✕";color:var(--bad)}
+.track span{display:block;margin-top:2px;font-size:12.5px;color:var(--muted)}
+.track li.now{background:var(--gold-bg)}
+@media (max-width:900px){.track{grid-template-columns:minmax(0,1fr)}.track li{border-left:0;border-top:1px solid var(--line);display:flex;gap:10px;align-items:baseline}.track li:first-child{border-top:0}.track li::before{width:3px;height:auto;bottom:0;right:auto}.track span{margin:0}}
+.status{padding:14px 16px;border-radius:10px;border:1px solid var(--line-2);background:var(--surface);font-size:15px}
+.status.wait{border-color:var(--gold);background:var(--gold-bg)}
+.status.ok{border-color:rgba(24,121,74,.35);background:var(--ok-bg)}
+.status.bad{border-color:rgba(187,47,37,.35);background:var(--bad-bg)}
+.status b{font-weight:600}
+.status .why{display:block;margin-top:4px;font-size:13px;color:var(--muted)}
+.block{background:var(--surface);border:1px solid var(--line);border-radius:10px;min-width:0}
+.block>header{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:12px 16px;border-bottom:1px solid var(--line)}
+.block>header h3{margin:0;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.08em}
+.block>header p{margin:0;font-size:12.5px;color:var(--muted)}
+.block>header .right{margin-left:auto}
+.block>.in{padding:12px 16px}
+.tabs{display:flex;flex-wrap:wrap;gap:6px;padding:10px 16px 0}
+.tabs button{padding:5px 10px;border:1px solid var(--line-2);border-radius:6px;font-size:12.5px;display:inline-flex;gap:6px;align-items:center}
+.tabs button[aria-selected=true]{background:var(--black);border-color:var(--black);color:var(--white)}
+.tabs .dot{width:7px;height:7px;border-radius:50%;background:var(--ok)}.tabs .dot.bad{background:var(--bad)}.tabs .dot.warn{background:var(--gold)}
+.claims{width:100%;border-collapse:collapse;font-size:13.5px;table-layout:fixed}
+.claims col.c1{width:56px}.claims col.c3{width:132px}
+.claims th{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);text-align:left;padding:10px 16px 6px}
+.claims td{padding:10px 16px;border-top:1px solid var(--line);vertical-align:top;overflow-wrap:break-word}
+.claims td:first-child{font:600 12px var(--mono)}
+.claims .said code,.claims .found code{background:var(--raised);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+.claims .fix{margin-top:6px;font-size:12.5px;color:var(--muted)}
+.claims .fix b{color:var(--text);font-weight:600}
+.claims .lim{margin-top:4px;font-size:12px;color:var(--faint)}
+.tablewrap{overflow-x:auto}
+@media (max-width:700px){.claims,.claims tbody{display:block}.claims colgroup,.claims thead{display:none}.claims tr{display:grid;grid-template-columns:44px minmax(0,1fr);border-top:1px solid var(--line);padding:8px 0}.claims td{border:0;padding:3px 16px 3px 0}.claims td:first-child{padding:3px 0 0 16px;grid-row:span 3;overflow-wrap:normal}}
+.decisions{list-style:none;margin:0;padding:0}
+.decisions li{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;padding:10px 16px;border-top:1px solid var(--line)}
+.decisions li:first-child{border-top:0}
+.decisions time{margin-left:auto;font:11px var(--mono);color:var(--faint)}
+.receipt{display:grid;gap:10px}
+.receipt .term{border-radius:8px;background:var(--black);color:var(--white);padding:12px 14px;font:12.5px/1.7 var(--mono);overflow-x:auto;white-space:pre}
+.term .p{color:var(--gold)}.term .okc{color:#7ee0ad}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:6px;border:1px solid var(--black);font-weight:600;font-size:13px;color:var(--text);text-decoration:none;background:var(--surface)}
+.btn:hover{background:var(--gold);border-color:var(--gold)}
+.trail details{border-top:1px solid var(--line)}
+.trail details:first-child{border-top:0}
+.trail summary{display:grid;grid-template-columns:28px 74px minmax(0,1fr) auto;gap:10px;align-items:baseline;padding:8px 16px;cursor:pointer;list-style:none;font-size:13px}
+.trail summary::-webkit-details-marker{display:none}
+.trail summary:hover{background:var(--raised)}
+.trail .i{font:12px var(--mono);color:var(--faint);text-align:right}
+.trail .k{font:600 10.5px/1.8 var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.trail .k.audit{color:var(--text)}.trail .k.decision{color:var(--gold-ink)}
+.trail .s{min-width:0;overflow-wrap:break-word}
+.trail .s code{background:var(--raised);border-radius:4px;padding:0 4px}
+.trail .id{font:11.5px var(--mono);color:var(--gold-ink)}
+.trail details[open] summary{background:var(--raised)}
+.trail pre{margin:0;padding:10px 16px 12px 130px;font:12px/1.5 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere;color:var(--muted);background:var(--raised)}
+@media (max-width:700px){.trail summary{grid-template-columns:minmax(0,1fr) auto}.trail .i{display:none}.trail .k{grid-row:1}.trail .s{grid-column:1/-1}.trail pre{padding-left:16px}}
+
+/* messages (shared by the case conversation and the rooms view) */
+.feed{padding:6px 0}
+.msg{display:grid;grid-template-columns:30px minmax(0,1fr);gap:10px;padding:10px 16px;border-left:2px solid transparent}
+.msg.notary{background:rgba(255,201,0,.07);border-left-color:var(--gold)}
+.av{width:30px;height:30px;border-radius:7px;display:grid;place-items:center;font-weight:600;font-size:11.5px;background:var(--black);color:var(--white)}
+.av.notary{background:var(--gold);color:var(--black);font:600 17px/1 var(--serif)}
 .av.agent{background:var(--raised);color:var(--text);border:1px solid var(--line-2)}
 .who{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 8px;margin-bottom:2px}
 .who b{font-weight:600}
 .role{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
 .who time{font:11px var(--mono);color:var(--faint)}
+.who .tag{margin-left:auto}
 .body{white-space:pre-wrap;overflow-wrap:anywhere}
 .body b{font-weight:600}
 .body code{background:var(--raised);border:1px solid var(--line);padding:0 5px;border-radius:4px}
-pre{font:12px/1.5 var(--mono);background:var(--bg);border:1px solid var(--line);padding:8px 10px;border-radius:8px;overflow:auto;white-space:pre-wrap;margin:8px 0 0}
-
-/* check cards inside messages */
+pre.raw{font:12px/1.5 var(--mono);background:var(--bg);border:1px solid var(--line);padding:8px 10px;border-radius:8px;overflow:auto;white-space:pre-wrap;margin:8px 0 0}
 .card{margin:8px 0 2px;border:1px solid var(--line-2);border-radius:8px;background:var(--bg);white-space:normal}
 .card .t{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:7px 10px;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted)}
 .card .t b{color:var(--text);font-weight:600}
-.tag{font:600 10.5px/1.6 var(--mono);text-transform:uppercase;letter-spacing:.06em;padding:0 6px;border-radius:4px;border:1px solid var(--line-2);color:var(--text)}
-.tag.bounce{background:var(--bad);border-color:var(--bad);color:#fff}
-.tag.verdict{background:var(--gold);border-color:var(--gold);color:var(--black)}
-.chips{display:flex;flex-wrap:wrap;gap:6px;padding:8px 10px}
-.chip{display:inline-flex;align-items:center;gap:5px;font:12px/1.6 var(--mono);padding:0 7px;border-radius:4px;border:1px solid transparent;background:var(--raised)}
-.chip.ok{color:var(--ok);background:var(--ok-bg)}.chip.ok::before{content:"✓"}
-.chip.bad{color:var(--bad);background:var(--bad-bg)}.chip.bad::before{content:"✕"}
-.chip.warn{color:var(--gold-ink);background:var(--gold-bg);border:1px dashed #d9a800}.chip.warn::before{content:"?"}
-.detail{padding:0 10px 9px;font-size:12px;color:var(--muted)}
-.detail div+div{margin-top:4px}
-.detail b{color:var(--text)}
-.detail code{color:var(--gold-ink);background:none;border:0;padding:0}
+.card .chips{display:flex;flex-wrap:wrap;gap:6px;padding:8px 10px}
 
-/* work orders and receipts */
-.list{padding:4px 0}
-.row{display:block;width:100%;text-align:left;padding:10px 16px;border-top:1px solid var(--line)}
-.row:first-child{border-top:0}
-button.row:hover{background:var(--raised)}
-.row>span{display:block}
-.row .a{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.row .id{font:600 13px var(--mono)}
-.row .b{margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.row .c{margin-top:2px;font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center}
-.row .c code{color:var(--text)}
-.row .c button{color:var(--gold-ink);text-decoration:underline;text-decoration-color:var(--gold);text-decoration-thickness:2px;text-underline-offset:3px}
-.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:3px;margin-top:8px}
-.steps i{height:3px;border-radius:2px;background:var(--line-2)}
-.steps i.on{background:var(--gold)}.steps.done i.on{background:var(--ok)}.steps.held i.on{background:var(--bad)}
-.badge{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:1px 7px;border-radius:4px;white-space:nowrap;color:var(--muted);border:1px solid var(--line-2)}
-.badge.wait{background:var(--gold);border-color:var(--gold);color:var(--black)}
-.badge.ok{color:var(--ok);background:var(--ok-bg);border-color:transparent}
-.badge.bad{color:var(--bad);background:var(--bad-bg);border-color:transparent}
-.empty{padding:20px 16px;color:var(--muted);font-size:13px}
-.empty code{color:var(--text)}
+/* rooms view */
+.rooms{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;padding:16px 24px 24px}
+.roomtabs{display:none;gap:4px;padding:4px;background:var(--surface);border:1px solid var(--line);border-radius:10px}
+.roomtabs button{flex:1;padding:7px;border-radius:7px;font-weight:600;font-size:13px;color:var(--muted)}
+.roomtabs button[aria-selected=true]{background:var(--black);color:var(--white)}
 
-/* ledger dialog */
-dialog{border:1px solid var(--line-2);border-radius:10px;background:var(--surface);color:var(--text);width:min(820px,94vw);padding:0}
-dialog::backdrop{background:rgba(8,9,11,.45)}
-dialog .h{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line)}
-dialog .h b{font:600 18px var(--serif)}
-dialog .h button{margin-left:auto;padding:5px 12px;border:1px solid var(--line-2);border-radius:6px;font-size:13px}
-dialog .h button:hover{border-color:var(--black)}
-.lines{max-height:65vh;overflow:auto;padding:6px 0 10px;font:12px/1.6 var(--mono)}
-.line{display:grid;grid-template-columns:28px 130px minmax(0,1fr);gap:10px;padding:5px 16px;border-top:1px solid var(--line)}
-.line:first-child{border-top:0}
-.line .i{color:var(--faint);text-align:right}.line .e{color:var(--gold-ink)}.line .r{overflow-wrap:anywhere;color:var(--muted)}
-@media (max-width:600px){.line{grid-template-columns:minmax(0,1fr)}.line .i{display:none}}
+/* narrow screens: master/detail */
+@media (max-width:1100px){
+  .top{padding:12px 16px;gap:10px 20px}
+  .cases{grid-template-columns:minmax(0,1fr);padding:12px 16px 16px}
+  body.has-case .cases .rail{display:none}
+  body:not(.has-case) .cases .case{display:none}
+  .back{display:inline-block}
+  .case-in{padding:16px}
+  .rooms{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);gap:12px;padding:12px 16px 16px}
+  .roomtabs{display:flex}
+  .rooms>.panel:not(.on){display:none}
+}
+@media (max-width:760px){
+  .top{display:grid;grid-template-columns:minmax(0,1fr) auto}
+  .views{grid-column:1/-1;grid-row:3}
+  .views a{flex:1;text-align:center}
+  .meta{margin:0;grid-area:1/2}.meta .legend,.meta .ro{display:none}
+  .stats{grid-column:1/-1;gap:24px}.stats dd{font-size:20px}
+  .case .title{font-size:22px}
+}
 </style>
 </head>
 <body>
 <header class="top">
-  <div class="brand"><span class="seal" aria-hidden="true">N</span><h1>Notary<span>for Switch</span></h1></div>
+  <a class="brand" href="#list"><span class="seal" aria-hidden="true">N</span><h1>Notary<span>for Switch</span></h1></a>
   <dl class="stats">
     <div><dt>Work orders</dt><dd id="st-wo">–</dd></div>
     <div class="gold"><dt>To approve</dt><dd id="st-wait">–</dd></div>
     <div><dt>Signed receipts</dt><dd id="st-rc">–</dd></div>
   </dl>
+  <nav class="views" aria-label="Views"><a href="#list" id="v-cases" aria-current="page">Work orders</a><a href="#rooms" id="v-rooms">Live rooms</a></nav>
   <div class="meta">
     <span class="live" id="live" role="status">Connecting</span>
     <span class="legend" aria-label="Legend"><span class="chip ok">backed</span><span class="chip bad">contradicted</span><span class="chip warn">unverified</span></span>
     <span class="ro">read-only · key <code id="key">…</code></span>
   </div>
 </header>
-<nav role="tablist" aria-label="Panels">
-  <button role="tab" data-tab="desk" aria-selected="true">Desk</button><button role="tab" data-tab="work" aria-selected="false">Work room</button><button role="tab" data-tab="side" aria-selected="false">Orders</button>
-</nav>
-<main>
-  <section data-tab="desk" class="on"><h2>Desk <em>people + Notary · only checked results land here</em><span class="n" id="n-desk"></span></h2><div class="feed" id="desk" aria-live="polite"><div class="empty">Connecting to the Notary…</div></div></section>
-  <section data-tab="work"><h2>Work room <em>builder, reviewer, Notary</em><span class="n" id="n-work"></span></h2><div class="feed" id="work"><div class="empty">Connecting to the Notary…</div></div></section>
-  <section data-tab="side" class="side">
-    <div><h2>Work orders<span class="n" id="n-wos"></span></h2><div class="list" id="wos"></div></div>
-    <div><h2>Receipts <em>re-checked like notary-verify</em></h2><div class="list" id="receipts"></div></div>
-  </section>
+
+<main class="cases" id="cases">
+  <section class="panel rail"><h2>Work orders<span class="n" id="n-wos"></span></h2><div class="scroll" id="wos"><div class="empty">Connecting to the Notary…</div></div></section>
+  <article class="panel case" id="case"><div class="empty">Connecting to the Notary…</div></article>
 </main>
-<dialog id="dlg" aria-labelledby="dlg-t"><div class="h"><b id="dlg-t"></b><span class="badge" id="dlg-c"></span><button onclick="dlg.close()">Close</button></div><div class="lines" id="dlg-l"></div></dialog>
+
+<main class="rooms" id="rooms" hidden>
+  <div class="roomtabs" role="tablist" aria-label="Rooms"><button role="tab" data-room="desk" aria-selected="true">Desk</button><button role="tab" data-room="work" aria-selected="false">Work room</button></div>
+  <section class="panel on" data-room="desk"><h2>Desk <em>people + Notary · only checked results land here</em><span class="n" id="n-desk"></span></h2><div class="scroll feed" id="desk"></div></section>
+  <section class="panel" data-room="work"><h2>Work room <em>builder, reviewer, Notary</em><span class="n" id="n-work"></span></h2><div class="scroll feed" id="work"></div></section>
+</main>
+
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const CONTRADICT = new Set(["tests_failed","commit_missing","not_on_branch","files_differ","undisclosed_change","command_failed","citation_unknown","citation_irrelevant","block_invalid","block_missing"]);
-const cls = code => code == null ? "ok" : CONTRADICT.has(code) ? "bad" : "warn";
+const short = (s, n) => esc(String(s || "").slice(0, n));
+const time = ms => ms ? new Date(ms).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",second:"2-digit"}) : "";
+const plural = (n, w) => `${n} ${n === 1 ? w : w.endsWith("y") ? w.slice(0, -1) + "ies" : w + "s"}`;
 const STEP = {building:1, reviewing:2, awaiting_approval:3, approved:4, held:4};
 const BADGE = {awaiting_approval:"wait", approved:"ok", held:"bad"};
-const time = ms => ms ? new Date(ms).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",second:"2-digit"}) : "";
-const short = (s, n) => esc(String(s || "").slice(0, n));
+const FIXER = {builder:"the builder", human:"a person", operator:"the operator", notary:"the Notary"};
+const CONTRADICT = new Set(["tests_failed","commit_missing","not_on_branch","files_differ","undisclosed_change","command_failed","citation_unknown","citation_irrelevant","block_invalid","block_missing"]);
+const verdictCls = v => v === "backed" ? "ok" : v === "contradicted" ? "bad" : "warn";
+const codeCls = code => code == null ? "ok" : CONTRADICT.has(code) ? "bad" : "warn";
 
-function inline(t) {
-  return esc(t).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
-}
+/* ---------- chat messages ---------- */
+function inline(t) { return esc(t).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>"); }
 function block(tag, json) {
-  let b; try { b = JSON.parse(json); } catch { return `<pre>${esc(json)}</pre>`; }
+  let b; try { b = JSON.parse(json); } catch { return `<pre class="raw">${esc(json)}</pre>`; }
   if (tag === "notary-bounce") {
     const chips = [...(b.backed||[]).map(c => `<span class="chip ok">${esc(c)}</span>`),
       ...(b.fix||[]).map(f => `<span class="chip bad">${esc(f.claim||"finding")} ${esc(f.code)}</span>`),
       ...(b.unverified||[]).map(f => `<span class="chip warn">${esc(f.claim||"finding")} ${esc(f.code)}</span>`)];
-    const detail = (b.fix||[]).map(f => {
-      const x = f.facts || {}, bits = [];
-      if (x.collected != null) bits.push(`my run: ${esc(x.passed)}/${esc(x.collected)} passed`);
-      if (x.ids) bits.push(esc(x.ids.join(", ")));
-      if (x.paths) bits.push(esc(x.paths.join(", ")));
-      return `<div><b>${esc(f.code)}</b>: ${esc(f.do)}${bits.length ? " · " + bits.join(" · ") : ""} <code>${(f.ev||[]).map(e => short(e, 11)).join(" ")}</code></div>`;
-    }).join("");
-    return `<div class="card"><div class="t"><span class="tag bounce">Bounce ${esc(b.attempt)}/${esc(b.max)}</span><b>${esc(b.wo)}</b> at <code>${short(b.sha, 7)}</code></div><div class="chips">${chips.join("")}</div>${detail ? `<div class="detail">${detail}</div>` : ""}</div>`;
+    return `<div class="card"><div class="t"><span class="tag bounce">Bounce ${esc(b.attempt)}/${esc(b.max)}</span><b>${esc(b.wo)}</b> at <code>${short(b.sha, 7)}</code></div><div class="chips">${chips.join("")}</div></div>`;
   }
   if (tag === "notary-verdict") {
-    const chips = [...(b.checked||[]).map(c => `<span class="chip ${cls(c.code)}">${esc(c.claim)} ${esc(c.kind || "")}${c.code ? " · " + esc(c.code) : ""}</span>`),
-      ...(b.findings||[]).map(f => `<span class="chip ${cls(f.code)}">finding · ${esc(f.code)}</span>`)];
-    return `<div class="card"><div class="t"><span class="tag verdict">Verdict</span>${esc(b.stage || "")} report ${esc(b.attempt)} · next <b>${esc(String(b.next || "").replaceAll("_", " "))}</b></div><div class="chips">${chips.join("")}</div></div>`;
+    const chips = [...(b.checked||[]).map(c => `<span class="chip ${codeCls(c.code)}">${esc(c.claim)} ${esc(c.kind || "")}${c.code ? " · " + esc(c.code) : ""}</span>`),
+      ...(b.findings||[]).map(f => `<span class="chip ${codeCls(f.code)}">finding · ${esc(f.code)}</span>`)];
+    return `<div class="card"><div class="t"><span class="tag verdict">Verdict</span>${esc(b.stage || "")} report ${esc(b.attempt)}</div><div class="chips">${chips.join("")}</div></div>`;
   }
   if (tag === "notary-claims") {
     const chips = (b.claims||[]).map(c => `<span class="chip">${esc(c.id)} ${esc(c.kind)}</span>`);
     return `<div class="card"><div class="t"><span class="tag">Claims</span><b>${esc(b.wo)}</b> at <code>${short(b.sha, 7)}</code> · not yet checked</div><div class="chips">${chips.join("")}</div></div>`;
   }
-  return `<pre>${esc(json)}</pre>`;
+  return `<pre class="raw">${esc(json)}</pre>`;
 }
 function render(body) {
   const out = []; const re = /```([\w-]*)\n([\s\S]*?)```/g; let last = 0, m;
@@ -208,78 +279,277 @@ function render(body) {
   out.push(inline(body.slice(last).trimStart()));
   return out.join("");
 }
-function role(n) {
-  if (n === "notary") return "notary";
-  const m = /-(builder|reviewer)$/.exec(n); return m ? m[1] : "";
+function role(n) { if (n === "notary") return "notary"; const m = /-(builder|reviewer)$/.exec(n); return m ? m[1] : ""; }
+function message(e, room) {
+  const n = e.sender_name || "?", r = role(n), kind = r === "notary" ? "notary" : r ? "agent" : "";
+  const av = r === "notary" ? "N" : esc(n.replace(/^demo-|^acme-/, "").slice(0, 2).toUpperCase());
+  const tag = room ? `<span class="tag ${room === "desk" ? "desk" : ""}">${room === "desk" ? "Desk" : "Work"}</span>` : "";
+  return `<article class="msg ${kind}"><div class="av ${kind}" aria-hidden="true">${av}</div><div><div class="who"><b>${esc(n)}</b>${kind === "agent" ? `<span class="role">${r}</span>` : ""}<time>${time(e.timestamp)}</time>${tag}</div><div class="body">${render(e.body || "")}</div></div></article>`;
 }
-function show(tab) {
-  document.querySelectorAll("main>section").forEach(x => x.classList.toggle("on", x.dataset.tab === tab));
-  document.querySelectorAll("nav button").forEach(b => { const on = b.dataset.tab === tab; b.setAttribute("aria-selected", on); if (on) b.classList.remove("new"); });
-  const f = $(tab); if (f) f.scrollTop = f.scrollHeight;
+
+/* ---------- claims and evidence in plain words ---------- */
+function paths(list) {
+  const p = (list || []).map(x => `<code>${esc(x)}</code>`);
+  return p.length > 4 ? p.slice(0, 4).join(", ") + ` +${p.length - 4} more` : p.join(", ") || "nothing";
 }
-document.querySelectorAll("nav button").forEach(b => b.onclick = () => show(b.dataset.tab));
-const seen = {}, stick = {desk: true, work: true};
+function said(c) {
+  if (!c) return `<span class="muted">(claim not found)</span>`;
+  let t;
+  switch (c.kind) {
+    case "commit_pushed": t = `Pushed <code>${short(c.sha, 7)}</code> to <code>${esc(c.branch)}</code>`; break;
+    case "files_changed": t = `Changed ${paths(c.paths)}`; break;
+    case "no_other_changes": t = `Changed nothing else`; break;
+    case "tests_passed": t = `All tests pass${c.command ? ` (<code>${esc(c.command)}</code>)` : ""}`; break;
+    case "check_ran": t = `Ran <code>${esc(c.command)}</code>: ${esc(c.outcome || "?")}`; break;
+    case "reviewed_diff": t = `Reviewed the diff at <code>${short(c.sha, 7)}</code>`; break;
+    default: t = `<code>${esc(c.kind)}</code>`;
+  }
+  if ((c.cites || []).length) t += ` · cites ${c.cites.map(x => `<code>${short(x, 11)}</code>`).join(" ")}`;
+  return t;
+}
+function found(r) {
+  if (!r) return "";
+  const x = r.result || {}, sha = r.subject && r.subject.sha, branch = r.params && r.params.branch;
+  switch (r.operation) {
+    case "git_commit":
+      if (x.exists === false) return `git: commit <code>${short(sha, 7)}</code> not found`;
+      if (x.on_branch === false) return `git: commit exists but isn't on <code>${esc(branch)}</code>`;
+      return `git: commit <code>${short(sha, 7)}</code> exists${branch ? ` on <code>${esc(branch)}</code>` : ""}`;
+    case "git_diff": return `git diff: ${paths(x.paths)}`;
+    case "notary_test_run": {
+      const ids = (x.failed_ids || []).length ? `<br>failing: ${paths(x.failed_ids)}` : "";
+      return `My own run: <b>${esc(x.passed ?? "?")}/${esc(x.collected ?? "?")}</b> passed${x.failed ? `, ${esc(x.failed)} failed` : ""}${x.errors ? `, ${esc(x.errors)} errors` : ""}${ids}`;
+    }
+    case "switch_activity":
+      return (x.rows || []).length ? `Switch saw ${x.rows.map(w => `<code>${esc(w.title)}</code> ${esc(w.status)}`).join(", ")}` : `Switch has no record of commands`;
+    default: return `<code>${esc(r.operation || "record")}</code>`;
+  }
+}
+function summary(kind, r) {
+  const p = r.policy || {};
+  switch (kind) {
+    case "policy": return `Opened for <b>${esc(r.requester)}</b>. Approvers: ${esc((p.approvers || []).join(", "))}; acceptance check <code>${esc((p.acceptance || []).join(" "))}</code>`;
+    case "report": return `<b>${esc(r.agent)}</b> reported ${plural((r.report && r.report.claims || []).length, "claim")} at <code>${short(r.report && r.report.sha, 7)}</code>`;
+    case "evidence": return found(r);
+    case "audit": {
+      const n = (r.checked || []).length, ok = (r.checked || []).filter(c => c.verdict === "backed").length;
+      return `Checked <b>${esc(r.agent)}</b> report ${esc(r.attempt)}: ${ok}/${n} backed${(r.findings || []).length ? `, ${plural(r.findings.length, "finding")}` : ""}`;
+    }
+    case "decision": return `<b>${esc(r.by)}</b> pressed ${esc(r.answer)}${r.counted ? "" : " · not counted (not an approver)"}`;
+    default: return "";
+  }
+}
+
+/* ---------- the case file ---------- */
+function analyse(c) {
+  const entries = (c.entries || []).map(e => ({...e, r: c.records[e.record] || {}}));
+  const of = k => entries.filter(e => e.kind === k);
+  const policy = ((of("policy")[0] || {}).r || {}).policy || {};
+  const audits = of("audit").map(e => {
+    const a = e.r, rp = c.records[a.report] || {}, claims = (rp.report && rp.report.claims) || [];
+    const codes = [...(a.checked || []).filter(x => x.code).map(x => x.code), ...(a.findings || []).map(f => f.code)];
+    const bounced = codes.some(k => c.codes[k] && c.codes[k].fixer === "builder");
+    const worst = (a.checked || []).some(x => x.verdict === "contradicted") || (a.findings || []).some(f => CONTRADICT.has(f.code)) ? "bad"
+                : codes.length ? "warn" : "ok";
+    return {...a, claims, codes, bounced, worst};
+  });
+  const builder = audits.filter(a => a.stage === "builder"), reviewer = audits.filter(a => a.stage === "reviewer");
+  const max = policy.max_bounces ?? 2, lastB = builder[builder.length - 1];
+  const escalated = !!lastB && lastB.bounced && builder.length > max;
+  const decisions = of("decision").map(e => ({...e.r, at: e.at_ms}));
+  return {entries, policy, audits, builder, reviewer, max, escalated, decisions, lastB};
+}
+function track(o, a, receipt) {
+  const s = o.state, step = (cls, name, text) => `<li class="${cls}"><b>${name}</b><span>${text}</span></li>`;
+  const bounces = a.builder.filter(x => x.bounced).length;
+  const built = !a.lastB ? step(s === "building" ? "now" : "", "Build", "waiting for the first report")
+    : a.escalated ? step("fail", "Build", `${plural(a.builder.length, "report")}, out of bounces`)
+    : a.lastB.bounced ? step("now", "Build", `bounced ${bounces} of ${a.max}, waiting for a new report`)
+    : step("done", "Build", `${plural(a.builder.length, "report")}${bounces ? `, ${bounces} bounced` : ""}, all backed`);
+  const lastR = a.reviewer[a.reviewer.length - 1];
+  const reviewed = lastR ? step("done", "Review", lastR.worst === "ok" ? "all review claims backed" : `${plural(lastR.codes.length, "flag")} for the approver`)
+    : step(s === "reviewing" ? "now" : "", "Review", s === "reviewing" ? "waiting for the reviewer" : a.escalated ? "skipped: a person decides" : "after the build is backed");
+  const counted = a.decisions.find(d => d.counted);
+  const approval = s === "approved" ? step("done", "Approval", `approved by ${esc(counted ? counted.by : "an approver")}`)
+    : s === "held" ? step("fail", "Approval", `held by ${esc(counted ? counted.by : "an approver")}`)
+    : s === "awaiting_approval" ? step("now", "Approval", `waiting for ${esc((a.policy.approvers || []).join(" or ") || "an approver")}`)
+    : step("", "Approval", "card goes to the desk");
+  const rc = receipt && receipt.ok ? step("done", "Receipt", "signed and verified") : receipt ? step("fail", "Receipt", "fails verification") : step("", "Receipt", "signed on approval");
+  return `<ol class="track" aria-label="Progress">${step("done", "Filed", `by ${esc(o.requester)}`)}${built}${reviewed}${approval}${rc}</ol>`;
+}
+function status(o, a, receipt) {
+  const codeList = codes => [...new Set(codes)].map(k => `<span class="chip ${codeCls(k)}">${esc(k)}</span>`).join(" ");
+  const counted = a.decisions.find(d => d.counted);
+  const refused = [...new Set(a.decisions.filter(d => !d.counted).map(d => d.by))];
+  const why = refused.length ? `<span class="why">${esc(refused.join(", "))} pressed a button too, but isn't on the approver list, so it didn't count.</span>` : "";
+  const approvers = esc((a.policy.approvers || []).join(" or ") || "an approver");
+  if (o.state === "approved") return `<div class="status ok"><b>Approved by ${esc(counted ? counted.by : "an approver")}.</b> ${receipt && receipt.ok ? "The receipt is signed and verifies." : ""}${why}</div>`;
+  if (o.state === "held") return `<div class="status bad"><b>Held by ${esc(counted ? counted.by : "an approver")}.</b> Nothing ships.${why}</div>`;
+  if (o.state === "awaiting_approval") {
+    const flags = [...(a.escalated ? ["revision_limit", ...a.lastB.codes] : []), ...a.reviewer.flatMap(r => r.codes)];
+    return `<div class="status wait"><b>Waiting for ${approvers} to approve or hold.</b> ${flags.length ? `Flagged for them: ${codeList(flags)}` : "Every claim is backed."}<span class="why">${a.escalated ? `The builder used all ${a.max} bounces and the problem is still there, so a person decides.` : "The approval card is in the desk room."}</span>${why}</div>`;
+  }
+  if (o.state === "reviewing") return `<div class="status"><b>The builder's claims are all backed.</b> Waiting for the reviewer's report.</div>`;
+  if (a.lastB && a.lastB.bounced) return `<div class="status bad"><b>Report ${esc(a.lastB.attempt)} bounced back to the builder</b> (${a.builder.filter(x => x.bounced).length} of ${a.max} bounces used): ${codeList(a.lastB.codes)}<span class="why">The desk sees none of this until the builder's claims check out or the bounces run out.</span></div>`;
+  return `<div class="status"><b>Waiting for the builder's first report.</b> Notary briefed the builder in the work room.</div>`;
+}
+const reportTab = {}, openRows = new Set();
+function reports(c, a) {
+  if (!a.audits.length) return `<section class="block"><header><h3>Claims checked</h3><p>Nothing reported yet.</p></header></section>`;
+  const sel = Math.min(reportTab[c.wo] ?? a.audits.length - 1, a.audits.length - 1);
+  const tabs = a.audits.map((x, i) => `<button role="tab" data-report="${i}" aria-selected="${i === sel}"><i class="dot ${x.worst === "ok" ? "" : x.worst}" aria-hidden="true"></i>${x.stage === "builder" ? "Builder" : "Reviewer"} report ${esc(x.attempt)}</button>`).join("");
+  const au = a.audits[sel], claim = id => au.claims.find(x => x.id === id);
+  const ev = ids => (ids || []).map(id => c.records[id] ? found(c.records[id]) : `<code>${short(id, 11)}</code> isn't evidence in this work order`).join("<br>");
+  const meaning = code => { const m = c.codes[code]; return m ? `<div class="fix"><b>${esc(code)}</b>: ${esc(m.remediation)} <span class="muted">(for ${esc(FIXER[m.fixer] || m.fixer)})</span></div>` : ""; };
+  const rows = (au.checked || []).map(x => `<tr><td>${esc(x.claim)}</td><td class="said">${said(claim(x.claim))}</td><td><span class="chip ${verdictCls(x.verdict)}">${esc(x.verdict)}</span></td><td class="found">${ev(x.evidence)}${x.code ? meaning(x.code) : ""}${(x.limitations || []).length ? `<div class="lim">${esc(x.limitations.join("; "))}</div>` : ""}</td></tr>`).join("");
+  const finds = (au.findings || []).map(f => `<tr><td>+</td><td class="said">Finding${f.claim ? ` on ${esc(f.claim)}` : ""}${(f.paths || []).length ? `: ${paths(f.paths)}` : ""}</td><td><span class="chip ${codeCls(f.code)}">${esc(f.code)}</span></td><td class="found">${ev(f.evidence)}${meaning(f.code)}</td></tr>`).join("");
+  const ok = (au.checked || []).filter(x => x.verdict === "backed").length;
+  return `<section class="block"><header><h3>Claims checked</h3><p>What <b>${esc(au.agent)}</b> said, and what Notary found itself: ${ok}/${(au.checked || []).length} backed at <code>${short(au.sha, 7)}</code>.</p></header>
+    <div class="tabs" role="tablist" aria-label="Reports">${tabs}</div>
+    <div class="tablewrap"><table class="claims"><colgroup><col class="c1"><col><col class="c3"><col></colgroup><thead><tr><th>Claim</th><th>The agent said</th><th>Verdict</th><th>Notary found</th></tr></thead><tbody>${rows}${finds}</tbody></table></div></section>`;
+}
+function decisionsBlock(a) {
+  if (!a.decisions.length) return "";
+  const li = a.decisions.map(d => `<li><span class="chip ${d.counted ? (d.answer === "approve" ? "ok" : "bad") : "warn"}">${esc(d.answer)}</span><b>${esc(d.by)}</b>${d.counted ? "counted" : `<span class="muted">not counted: not on the approver list</span>`}<time>${time(d.at)}</time></li>`).join("");
+  return `<section class="block"><header><h3>Decisions</h3><p>Every button press is recorded, including refused ones.</p></header><ul class="decisions">${li}</ul></section>`;
+}
+function receiptBlock(c, receipt, key) {
+  if (!receipt) return `<section class="block"><header><h3>Receipt</h3><p>Notary signs a receipt when an approver approves.</p></header></section>`;
+  if (!receipt.ok) return `<section class="block"><header><h3>Receipt</h3><span class="badge bad">✕ fails</span></header><div class="in muted">${esc(receipt.why)}</div></section>`;
+  return `<section class="block"><header><h3>Receipt</h3><span class="badge ok">✓ verified</span><a class="btn right" href="/receipts/${encodeURIComponent(receipt.file)}" download>Download ${esc(receipt.file)}</a></header>
+    <div class="in receipt"><p class="muted" style="margin:0">Anyone can check this file offline. It holds every entry in the evidence trail plus Notary's signature over the last one; changing any byte makes it fail.</p>
+    <div class="term"><span class="p">$</span> notary-verify ${esc(receipt.file)}\n<span class="okc">OK ${esc(c.wo)}: ${esc(receipt.entries)} entries, chain intact, head ${short(receipt.head, 16)}, signed by ${short(key, 16)}</span></div></div></section>`;
+}
+function trail(c, a) {
+  const chain = c.chain.ok ? `<span class="badge ok">✓ chain intact</span>` : `<span class="badge bad">✕ ${esc(c.chain.error)}</span>`;
+  const rows = a.entries.map(e => `<details data-seq="${esc(e.seq)}"${openRows.has(c.wo + ":" + e.seq) ? " open" : ""}><summary><span class="i">${esc(e.seq)}</span><span class="k ${esc(e.kind)}">${esc(e.kind)}</span><span class="s">${summary(e.kind, e.r)}</span><span class="id">${short(e.record, 11)}</span></summary><pre>${esc(JSON.stringify(e.r, null, 2))}</pre></details>`).join("");
+  return `<section class="block trail"><header><h3>Evidence trail</h3>${chain}<p>${plural(a.entries.length, "entry")}, each fingerprinted and linked to the one before. Open one to see its raw record.</p></header><div>${rows || `<div class="empty">No entries yet.</div>`}</div></section>`;
+}
+function convo(c, state) {
+  const re = new RegExp(`\\b${c.wo}(?!\\d)`);
+  const msgs = [...(state.desk || []).map(e => [e, "desk"]), ...(state.work || []).map(e => [e, "work"])]
+    .filter(([e]) => re.test(e.body || "")).sort((x, y) => (x[0].timestamp || 0) - (y[0].timestamp || 0));
+  return `<section class="panel convo"><h2>Conversation <em>both rooms, this work order</em><span class="n">${msgs.length || ""}</span></h2><div class="scroll feed">${msgs.map(([e, r]) => message(e, r)).join("") || `<div class="empty">No messages mention ${esc(c.wo)} yet.</div>`}</div></section>`;
+}
+function caseFile(c, state) {
+  const o = c.order, a = analyse(c), p = a.policy;
+  const receipt = (state.receipts || []).find(r => r.wo === c.wo || r.file === `receipt-${c.wo.toLowerCase()}.json`);
+  return `<div class="case-in">
+    <div><a class="back" href="#list">← All work orders</a>
+      <p class="eyebrow"><b>${esc(c.wo)}</b><span class="badge ${BADGE[o.state] || ""}">${esc(o.state.replaceAll("_", " "))}</span><span>requested by ${esc(o.requester)} at ${time(o.created_ms)}</span></p>
+      <h2 class="title">${esc(o.title)}</h2>
+      <div class="facts"><span>branch <b><code>${esc(o.branch)}</code></b> from <b><code>${short(o.base, 7)}</code></b></span><span>approvers <b>${esc((p.approvers || []).join(", ") || "?")}</b></span><span>acceptance check <b><code>${esc((p.acceptance || []).join(" "))}</code></b></span><span>bounce limit <b>${esc(a.max)}</b></span></div>
+    </div>
+    ${track(o, a, receipt)}
+    ${status(o, a, receipt)}
+    ${reports(c, a)}
+    ${decisionsBlock(a)}
+    ${receiptBlock(c, receipt, state.key)}
+    ${trail(c, a)}
+    ${convo(c, state)}
+  </div>`;
+}
+
+/* ---------- lists, rooms, routing, polling ---------- */
+function bars(st) {
+  const n = STEP[st] || 0, k = st === "approved" ? " done" : st === "held" ? " held" : "";
+  return `<div class="bars${k}" aria-hidden="true">${[1,2,3,4].map(i => `<i class="${i <= n ? "on" : ""}"></i>`).join("")}</div>`;
+}
+let S = null, lastState = "", lastCase = "", caseData = null, selected = null, view = "cases";
+const stick = {desk: true, work: true};
 for (const id in stick) {
   const el = $(id);
   el.addEventListener("scroll", () => { if (el.clientHeight) stick[id] = el.scrollHeight - el.scrollTop - el.clientHeight < 80; });
   new ResizeObserver(() => { if (stick[id]) el.scrollTop = el.scrollHeight; }).observe(el);
 }
-function feed(el, events, empty) {
-  if (seen[el.id] !== undefined && events.length > seen[el.id]) {
-    const b = document.querySelector(`nav button[data-tab=${el.id}]`); if (b.getAttribute("aria-selected") !== "true") b.classList.add("new");
-  }
-  seen[el.id] = events.length;
-  $("n-" + el.id).textContent = events.length || "";
-  el.innerHTML = events.length ? events.map(e => {
-    const n = e.sender_name || "?", r = role(n), kind = r === "notary" ? "notary" : r ? "agent" : "";
-    const av = r === "notary" ? "N" : esc(n.replace(/^demo-|^acme-/, "").slice(0, 2).toUpperCase());
-    return `<article class="msg ${kind}"><div class="av ${kind}" aria-hidden="true">${av}</div><div><div class="who"><b>${esc(n)}</b>${kind === "agent" ? `<span class="role">${r}</span>` : ""}<time>${time(e.timestamp)}</time></div><div class="body">${render(e.body || "")}</div></div></article>`;
-  }).join("") : empty;
-  if (stick[el.id]) el.scrollTop = el.scrollHeight;
+function feed(id, events, empty) {
+  const el = $(id);
+  $("n-" + id).textContent = events.length || "";
+  el.innerHTML = events.length ? events.map(e => message(e)).join("") : empty;
+  if (stick[id]) el.scrollTop = el.scrollHeight;
 }
-function steps(state) {
-  const n = STEP[state] || 0, k = state === "approved" ? " done" : state === "held" ? " held" : "";
-  return `<div class="steps${k}" aria-hidden="true">${[1,2,3,4].map(i => `<i class="${i <= n ? "on" : ""}"></i>`).join("")}</div>`;
+function pickDefault(wos) { const w = wos.find(x => x.state === "awaiting_approval") || wos[0]; return w ? w.wo : null; }
+function route() {
+  const h = decodeURIComponent(location.hash.slice(1));
+  view = h === "rooms" ? "rooms" : "cases";
+  $("cases").hidden = view !== "cases"; $("rooms").hidden = view !== "rooms";
+  for (const [id, v] of [["v-cases", "cases"], ["v-rooms", "rooms"]]) view === v ? $(id).setAttribute("aria-current", "page") : $(id).removeAttribute("aria-current");
+  if (/^WO-\d+$/i.test(h)) { selected = h.toUpperCase(); document.body.classList.add("has-case"); }
+  else { document.body.classList.remove("has-case"); if (S && !selected) selected = pickDefault(S.work_orders || []); }
+  if (S) { drawList(); loadCase(true); }
 }
-async function ledger(wo) {
-  const r = await (await fetch(`/api/ledger/${encodeURIComponent(wo)}`)).json();
-  $("dlg-t").textContent = `${wo} ledger`;
-  const c = $("dlg-c"); c.textContent = r.chain; c.className = "badge " + (/intact/.test(r.chain) ? "ok" : "bad");
-  $("dlg-l").innerHTML = (r.lines || []).map(l => {
-    const m = /^(\d+)\. `([^`]+)` ([\s\S]*)$/.exec(l);
-    return m ? `<div class="line"><span class="i">${esc(m[1])}</span><span class="e">${esc(m[2])}</span><span class="r">${esc(m[3])}</span></div>`
-             : `<div class="line"><span class="i"></span><span class="r">${inline(l)}</span></div>`;
-  }).join("") || `<div class="empty">No ledger entries yet.</div>`;
-  $("dlg").showModal();
+window.addEventListener("hashchange", route);
+document.querySelectorAll(".roomtabs button").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".roomtabs button").forEach(x => x.setAttribute("aria-selected", x === b));
+  document.querySelectorAll(".rooms>.panel").forEach(p => p.classList.toggle("on", p.dataset.room === b.dataset.room));
+  const f = $(b.dataset.room); f.scrollTop = f.scrollHeight;
+});
+document.addEventListener("click", e => {
+  const t = e.target.closest("[data-report]");
+  if (t && caseData) { reportTab[caseData.wo] = +t.dataset.report; drawCase(); }
+});
+document.addEventListener("toggle", e => {
+  const d = e.target; if (!(d instanceof HTMLDetailsElement) || !d.dataset.seq || !caseData) return;
+  const k = caseData.wo + ":" + d.dataset.seq; d.open ? openRows.add(k) : openRows.delete(k);
+}, true);
+function drawList() {
+  const wos = S.work_orders || [], rcs = S.receipts || [];
+  $("n-wos").textContent = wos.length || "";
+  $("wos").innerHTML = wos.map(w => {
+    const signed = rcs.some(r => r.ok && r.wo === w.wo);
+    return `<a class="row" href="#${esc(w.wo)}" aria-current="${w.wo === selected}"><span class="a"><span class="id">${esc(w.wo)}${signed ? "<small>✓ receipt</small>" : ""}</span><span class="badge ${BADGE[w.state] || ""}">${esc(w.state.replaceAll("_", " "))}</span></span><span class="b">${esc(w.title)}</span><span class="c">${esc(w.requester)} · ${plural(w.attempts, "report")}</span>${bars(w.state)}</a>`;
+  }).join("") || `<div class="empty">No work orders yet. In the desk room, post <code>@notary new &lt;request&gt;</code>.</div>`;
 }
-document.addEventListener("click", e => { const b = e.target.closest("[data-wo]"); if (b) ledger(b.dataset.wo); });
-let lastJson = "";
+function drawCase() {
+  const box = $("case");
+  if (!selected) { box.innerHTML = `<div class="empty">No work orders yet. In the desk room, post <code>@notary new &lt;request&gt;</code> and it appears here.</div>`; return; }
+  if (!caseData || caseData.wo !== selected) { box.innerHTML = `<div class="empty">Loading ${esc(selected)}…</div>`; return; }
+  const top = box.scrollTop, conv = box.querySelector(".convo .scroll"), ctop = conv && conv.scrollTop;
+  box.innerHTML = caseFile(caseData, S);
+  box.scrollTop = top;
+  const c2 = box.querySelector(".convo .scroll"); if (c2) c2.scrollTop = conv ? ctop : c2.scrollHeight;
+}
+async function loadCase(force) {
+  if (!selected || view !== "cases") { if (view === "cases") drawCase(); return; }
+  const want = selected;
+  if (!caseData || caseData.wo !== want) drawCase();
+  try {
+    const res = await fetch(`/api/wo/${encodeURIComponent(want)}`);
+    if (want !== selected) return;
+    if (!res.ok) { caseData = null; lastCase = ""; $("case").innerHTML = `<div class="empty">${esc(want)}: ${esc(await res.text())}</div>`; return; }
+    const text = await res.text();
+    if (!force && text === lastCase && caseData && caseData.wo === want) return;
+    const fresh = !caseData || caseData.wo !== want;
+    lastCase = text; caseData = JSON.parse(text);
+    if (fresh) $("case").innerHTML = "";
+    drawCase(); if (fresh) $("case").scrollTop = 0;
+  } catch (e) { /* the Notary restarting: the next tick retries */ }
+}
 async function tick() {
   try {
     const res = await fetch("/api/state"); if (!res.ok) throw new Error(res.status);
     const text = await res.text();
     $("live").className = "live"; $("live").textContent = "Live";
-    if (text === lastJson) return;
-    lastJson = text; const s = JSON.parse(text);
-    const wos = s.work_orders || [], rcs = s.receipts || [];
-    $("key").textContent = (s.key || "").slice(0, 16);
-    $("st-wo").textContent = wos.length;
-    $("st-wait").textContent = wos.filter(w => w.state === "awaiting_approval").length;
-    $("st-rc").textContent = rcs.filter(r => r.ok).length;
-    $("n-wos").textContent = wos.length || "";
-    feed($("desk"), s.desk || [], `<div class="empty">No messages yet. In the desk room, post <code>@notary new &lt;request&gt;</code>.</div>`);
-    feed($("work"), s.work || [], `<div class="empty">The builder and reviewer report here once a work order is open.</div>`);
-    $("wos").innerHTML = wos.map(w => `<button class="row" type="button" data-wo="${esc(w.wo)}" aria-label="Open the ${esc(w.wo)} ledger"><span class="a"><span class="id">${esc(w.wo)}</span><span class="badge ${BADGE[w.state] || ""}">${esc(w.state.replaceAll("_", " "))}</span></span><span class="b">${esc(w.title)}</span><span class="c">${esc(w.requester)} · ${esc(w.attempts)} report${w.attempts === 1 ? "" : "s"}</span>${steps(w.state)}</button>`).join("")
-      || `<div class="empty">No work orders yet. In the desk: <code>@notary new …</code></div>`;
-    $("receipts").innerHTML = rcs.map(r => r.ok
-      ? `<div class="row"><span class="a"><span class="id">${esc(r.wo)}</span><span class="badge ok">✓ verified</span></span><span class="c">${esc(r.entries)} entries · head <code>${short(r.head, 12)}</code></span><span class="c"><button type="button" data-wo="${esc(r.wo)}">ledger</button><a href="/receipts/${encodeURIComponent(r.file)}" download>download receipt</a></span></div>`
-      : `<div class="row"><span class="a"><span class="id">${esc(r.file)}</span><span class="badge bad">✕ fails</span></span><span class="c">${esc(r.why)}</span></div>`).join("")
-      || `<div class="empty">A signed receipt appears here when an approver approves.</div>`;
+    if (text !== lastState) {
+      lastState = text; S = JSON.parse(text);
+      const wos = S.work_orders || [], rcs = S.receipts || [];
+      $("key").textContent = (S.key || "").slice(0, 16);
+      $("st-wo").textContent = wos.length;
+      $("st-wait").textContent = wos.filter(w => w.state === "awaiting_approval").length;
+      $("st-rc").textContent = rcs.filter(r => r.ok).length;
+      if (!selected) selected = pickDefault(wos);
+      drawList();
+      feed("desk", S.desk || [], `<div class="empty">No messages yet. In the desk room, post <code>@notary new &lt;request&gt;</code>.</div>`);
+      feed("work", S.work || [], `<div class="empty">The builder and reviewer report here once a work order is open.</div>`);
+      await loadCase(true);
+    } else {
+      await loadCase(false);
+    }
   } catch (e) {
     $("live").className = "live down"; $("live").textContent = "Offline · retrying";
   }
 }
-tick(); setInterval(tick, 2500);
+route(); tick(); setInterval(tick, 2500);
 </script>
 </body>
 </html>
