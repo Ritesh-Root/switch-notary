@@ -63,7 +63,7 @@ There are two rooms (Mattermost channels via Switch):
 
 - Bounces keep the order in `building` (or `reviewing`).
 - Running out of bounces sends it to `awaiting_approval` with the flag `revision_limit`; a person decides.
-- (There is no separate `escalated` state, although the current viewer has a colour for one.)
+- There is no separate `escalated` state.
 
 ## 3. The data a front end can use today
 
@@ -208,10 +208,15 @@ Plain-text desk lines worth recognising: `**WO-N ready for approval**: …`, `**
 
 ## 6. What the current viewer shows (the baseline to beat)
 
-There are three columns: the **Desk** feed, the **Work room** feed, and a side panel with **Work orders** (state
-badges) and **Receipts** (OK/FAIL, download). Blocks render as coloured chips per claim. Clicking a work
-order or receipt opens its ledger in a dialog. Under 1100 px it switches to tabs. It uses a warm light and dark
-theme, Inter for text and the system mono font for code.
+A header shows counts (work orders, to approve, signed receipts) and a live/offline indicator. Below it are
+three columns: the **Desk** feed, the **Work room** feed, and a side panel with **Work orders** (state badge
+plus a four-step progress bar) and **Receipts** (verified/fails, ledger, download). Blocks render as cards
+with one chip per claim: backed ✓ green, contradicted ✕ red, unverified ? gold dashed outline, so state is
+never shown by colour alone. Clicking a work order opens its ledger in a dialog. Under 1100 px it switches to tabs.
+
+Palette: Midnight Black `#08090B` (background), Pure White `#F5F3EF` (text), Vibrant Golden Yellow `#FFC900`
+(the Notary's own messages, anything waiting on a person, focus rings). Source Serif 4 for the wordmark and
+numbers, Inter for text, JetBrains Mono for IDs and code (Google Fonts, with system fallbacks).
 
 ## 7. Gaps worth closing for a richer front end (small backend additions)
 
