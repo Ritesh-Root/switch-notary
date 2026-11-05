@@ -73,7 +73,7 @@ login, localhost only, and nothing in it changes state. Everything below comes f
 ### `GET /api/state`: one call for the whole screen
 ```json
 {
-  "key": "431d229c445b0fd6e95e0500d88c4197e6fe7fa98d8cd09d7549f4badee9140c",
+  "key": "431d229c445b0fd6…",
   "desk": [ /* message, oldest first, up to 120 */ ],
   "work": [ /* message, oldest first, up to 120 */ ],
   "work_orders": [
