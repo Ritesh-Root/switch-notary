@@ -247,6 +247,7 @@ const time = ms => ms ? new Date(ms).toLocaleTimeString([], {hour:"2-digit",minu
 const plural = (n, w) => `${n} ${n === 1 ? w : w.endsWith("y") ? w.slice(0, -1) + "ies" : w + "s"}`;
 const STEP = {building:1, reviewing:2, awaiting_approval:3, approved:4, held:4};
 const BADGE = {awaiting_approval:"wait", approved:"ok", held:"bad"};
+const SOURCE = {git: "git", notary_run: "The Notary's own run", switch_host: "Switch's activity log"};
 const FIXER = {builder:"the builder", human:"a person", operator:"the operator", notary:"the Notary"};
 const CONTRADICT = new Set(["tests_failed","commit_missing","not_on_branch","files_differ","undisclosed_change","command_failed","citation_unknown","citation_irrelevant","block_invalid","block_missing"]);
 const verdictCls = v => v === "backed" ? "ok" : v === "contradicted" ? "bad" : "warn";
@@ -310,6 +311,7 @@ function said(c) {
 function found(r) {
   if (!r) return "";
   const x = r.result || {}, sha = r.subject && r.subject.sha, branch = r.params && r.params.branch;
+  if (x.error) return `${esc(SOURCE[r.authority] || r.authority)} couldn't be checked: <code>${esc(x.error)}</code>`;
   switch (r.operation) {
     case "git_commit":
       if (x.exists === false) return `git: commit <code>${short(sha, 7)}</code> not found`;
@@ -348,14 +350,16 @@ function analyse(c) {
   const audits = of("audit").map(e => {
     const a = e.r, rp = c.records[a.report] || {}, claims = (rp.report && rp.report.claims) || [];
     const codes = [...(a.checked || []).filter(x => x.code).map(x => x.code), ...(a.findings || []).map(f => f.code)];
-    const bounced = codes.some(k => c.codes[k] && c.codes[k].fixer === "builder");
+    // Same rule as the desk (judge::next): a builder report bounces on a contradicted claim or a finding the builder can fix.
+    const bounced = a.stage === "builder" && ((a.checked || []).some(x => x.verdict === "contradicted")
+      || (a.findings || []).some(f => c.codes[f.code] && c.codes[f.code].fixer === "builder"));
     const worst = (a.checked || []).some(x => x.verdict === "contradicted") || (a.findings || []).some(f => CONTRADICT.has(f.code)) ? "bad"
                 : codes.length ? "warn" : "ok";
     return {...a, claims, codes, bounced, worst};
   });
   const builder = audits.filter(a => a.stage === "builder"), reviewer = audits.filter(a => a.stage === "reviewer");
   const max = policy.max_bounces ?? 2, lastB = builder[builder.length - 1];
-  const escalated = !!lastB && lastB.bounced && builder.length > max;
+  const escalated = !!lastB && lastB.bounced && lastB.attempt > max;
   const decisions = of("decision").map(e => ({...e.r, at: e.at_ms}));
   return {entries, policy, audits, builder, reviewer, max, escalated, decisions, lastB};
 }
@@ -365,7 +369,7 @@ function track(o, a, receipt) {
   const built = !a.lastB ? step(s === "building" ? "now" : "", "Build", "waiting for the first report")
     : a.escalated ? step("fail", "Build", `${plural(a.builder.length, "report")}, out of bounces`)
     : a.lastB.bounced ? step("now", "Build", `bounced ${bounces} of ${a.max}, waiting for a new report`)
-    : step("done", "Build", `${plural(a.builder.length, "report")}${bounces ? `, ${bounces} bounced` : ""}, all backed`);
+    : step("done", "Build", `${plural(a.builder.length, "report")}${bounces ? `, ${bounces} bounced` : ""}, ${a.lastB.codes.length ? `passed with ${plural(a.lastB.codes.length, "flag")}` : "all backed"}`);
   const lastR = a.reviewer[a.reviewer.length - 1];
   const reviewed = lastR ? step("done", "Review", lastR.worst === "ok" ? "all review claims backed" : `${plural(lastR.codes.length, "flag")} for the approver`)
     : step(s === "reviewing" ? "now" : "", "Review", s === "reviewing" ? "waiting for the reviewer" : a.escalated ? "skipped: a person decides" : "after the build is backed");
@@ -386,10 +390,11 @@ function status(o, a, receipt) {
   if (o.state === "approved") return `<div class="status ok"><b>Approved by ${esc(counted ? counted.by : "an approver")}.</b> ${receipt && receipt.ok ? "The receipt is signed and verifies." : ""}${why}</div>`;
   if (o.state === "held") return `<div class="status bad"><b>Held by ${esc(counted ? counted.by : "an approver")}.</b> Nothing ships.${why}</div>`;
   if (o.state === "awaiting_approval") {
-    const flags = [...(a.escalated ? ["revision_limit", ...a.lastB.codes] : []), ...a.reviewer.flatMap(r => r.codes)];
+    const lastR = a.reviewer[a.reviewer.length - 1];
+    const flags = [...(a.escalated ? ["revision_limit"] : []), ...(a.lastB ? a.lastB.codes : []), ...(lastR ? lastR.codes : [])];
     return `<div class="status wait"><b>Waiting for ${approvers} to approve or hold.</b> ${flags.length ? `Flagged for them: ${codeList(flags)}` : "Every claim is backed."}<span class="why">${a.escalated ? `The builder used all ${a.max} bounces and the problem is still there, so a person decides.` : "The approval card is in the desk room."}</span>${why}</div>`;
   }
-  if (o.state === "reviewing") return `<div class="status"><b>The builder's claims are all backed.</b> Waiting for the reviewer's report.</div>`;
+  if (o.state === "reviewing") return `<div class="status"><b>The builder's report passed.</b> ${a.lastB && a.lastB.codes.length ? `Flagged for the approver: ${codeList(a.lastB.codes)}` : "Every claim is backed."} Waiting for the reviewer's report.</div>`;
   if (a.lastB && a.lastB.bounced) return `<div class="status bad"><b>Report ${esc(a.lastB.attempt)} bounced back to the builder</b> (${a.builder.filter(x => x.bounced).length} of ${a.max} bounces used): ${codeList(a.lastB.codes)}<span class="why">The desk sees none of this until the builder's claims check out or the bounces run out.</span></div>`;
   return `<div class="status"><b>Waiting for the builder's first report.</b> Notary briefed the builder in the work room.</div>`;
 }
@@ -441,6 +446,7 @@ function caseFile(c, state) {
       <div class="facts"><span>branch <b><code>${esc(o.branch)}</code></b> from <b><code>${short(o.base, 7)}</code></b></span><span>approvers <b>${esc((p.approvers || []).join(", ") || "?")}</b></span><span>acceptance check <b><code>${esc((p.acceptance || []).join(" "))}</code></b></span><span>bounce limit <b>${esc(a.max)}</b></span></div>
     </div>
     ${track(o, a, receipt)}
+    ${c.chain.ok ? "" : `<div class="status bad"><b>This work order's evidence trail failed its integrity check.</b> Don't trust what's shown below until it's investigated.<span class="why">${esc(c.chain.error)}</span></div>`}
     ${status(o, a, receipt)}
     ${reports(c, a)}
     ${decisionsBlock(a)}
@@ -470,7 +476,7 @@ function feed(id, events, empty) {
 }
 function pickDefault(wos) { const w = wos.find(x => x.state === "awaiting_approval") || wos[0]; return w ? w.wo : null; }
 function route() {
-  const h = decodeURIComponent(location.hash.slice(1));
+  let h = ""; try { h = decodeURIComponent(location.hash.slice(1)); } catch { /* malformed: show the list */ }
   view = h === "rooms" ? "rooms" : "cases";
   $("cases").hidden = view !== "cases"; $("rooms").hidden = view !== "rooms";
   for (const [id, v] of [["v-cases", "cases"], ["v-rooms", "rooms"]]) view === v ? $(id).setAttribute("aria-current", "page") : $(id).removeAttribute("aria-current");
@@ -516,8 +522,9 @@ async function loadCase(force) {
   try {
     const res = await fetch(`/api/wo/${encodeURIComponent(want)}`);
     if (want !== selected) return;
-    if (!res.ok) { caseData = null; lastCase = ""; $("case").innerHTML = `<div class="empty">${esc(want)}: ${esc(await res.text())}</div>`; return; }
     const text = await res.text();
+    if (want !== selected) return;
+    if (!res.ok) { caseData = null; lastCase = ""; $("case").innerHTML = `<div class="empty">${esc(want)}: ${esc(text)}</div>`; return; }
     if (!force && text === lastCase && caseData && caseData.wo === want) return;
     const fresh = !caseData || caseData.wo !== want;
     lastCase = text; caseData = JSON.parse(text);

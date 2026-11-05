@@ -15,9 +15,9 @@ use axum::response::{Html, IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
 use notary_core::errors::Code;
-use notary_core::ledger::Ledger;
+use notary_core::ledger::{self, Ledger};
 use notary_core::receipt::{self, Bundle};
-use rusqlite::{Connection, OpenFlags};
+use rusqlite::{Connection, OpenFlags, OptionalExtension};
 use serde_json::{Value, json};
 
 use crate::switch::Agent;
@@ -120,14 +120,16 @@ async fn ledger(State(view): State<Arc<View>>, Path(wo): Path<String>) -> Respon
     }
 }
 
-fn order(view: &View, wo: &str) -> Value {
-    let Ok(db) = Connection::open_with_flags(view.data_dir.join("desk.db"), OpenFlags::SQLITE_OPEN_READ_ONLY) else { return Value::Null };
+/// One work order's row: `Ok(None)` if there's no such work order, `Err` if the desk can't be read.
+fn order(view: &View, wo: &str) -> Result<Option<Value>, String> {
+    let db = Connection::open_with_flags(view.data_dir.join("desk.db"), OpenFlags::SQLITE_OPEN_READ_ONLY).map_err(|e| e.to_string())?;
     db.query_row("SELECT wo, title, requester, state, attempts, base, branch, created_ms FROM work_orders WHERE wo = ?1", [wo], |r| {
         Ok(json!({"wo": r.get::<_, String>(0)?, "title": r.get::<_, String>(1)?, "requester": r.get::<_, String>(2)?,
                       "state": r.get::<_, String>(3)?, "attempts": r.get::<_, i64>(4)?, "base": r.get::<_, String>(5)?,
                       "branch": r.get::<_, String>(6)?, "created_ms": r.get::<_, i64>(7)?}))
     })
-    .unwrap_or(Value::Null)
+    .optional()
+    .map_err(|e| e.to_string())
 }
 
 /// What each code in these records means, plus the two the desk adds outside audits.
@@ -152,19 +154,27 @@ fn code_meanings(records: &BTreeMap<String, Value>) -> Value {
 
 async fn case_file(State(view): State<Arc<View>>, Path(wo): Path<String>) -> Response {
     let Some(wo) = wo_id(&wo) else { return (StatusCode::BAD_REQUEST, "not a work order").into_response() };
-    let order = order(&view, &wo);
-    if order.is_null() {
-        return (StatusCode::NOT_FOUND, "no such work order").into_response();
-    }
+    let order = match order(&view, &wo) {
+        Ok(Some(o)) => o,
+        Ok(None) => return (StatusCode::NOT_FOUND, "no such work order").into_response(),
+        Err(e) => return (StatusCode::SERVICE_UNAVAILABLE, format!("couldn't read the desk: {e}")).into_response(),
+    };
     let ledger = match Ledger::open(&view.data_dir.join("ledger.db")) {
         Ok(l) => l,
         Err(e) => return (StatusCode::SERVICE_UNAVAILABLE, e.to_string()).into_response(),
     };
-    let chain = match ledger.verify(&wo) {
-        Ok(n) => json!({"ok": true, "entries": n}),
-        Err(b) => json!({"ok": false, "error": format!("broken at entry {}: {}", b.seq, b.reason)}),
+    // One read: the chain is checked over exactly the entries returned. `export` re-hashes every
+    // record, so if one is missing or changed the entries still come back, without records.
+    let (entries, records, chain) = match ledger.export(&wo) {
+        Ok((entries, records)) => {
+            let chain = match ledger::verify_chain(&wo, &entries) {
+                Ok(n) => json!({"ok": true, "entries": n}),
+                Err(b) => json!({"ok": false, "error": format!("broken at entry {}: {}", b.seq, b.reason)}),
+            };
+            (entries, records, chain)
+        }
+        Err(e) => (ledger.entries(&wo).unwrap_or_default(), BTreeMap::new(), json!({"ok": false, "error": e.to_string()})),
     };
-    let (entries, records) = ledger.export(&wo).unwrap_or_default();
     let codes = code_meanings(&records);
     Json(json!({"wo": wo, "order": order, "chain": chain, "entries": entries, "records": records, "codes": codes})).into_response()
 }
