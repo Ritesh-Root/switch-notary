@@ -66,7 +66,7 @@ Three levels, from no setup to the real agents.
 
 ```bash
 make verify-sample
-# OK WO-7: 13 entries, chain intact, head f41e195df127d86f, signed by 9ef55a46dfd3e0de
+# OK WO-1: 13 entries, chain intact, head 62eb84daae712472, signed by 431d229c445b0fd6
 ```
 
 Change any byte in `samples/receipt-wo-1.json` and it prints `FAIL`.
