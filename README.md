@@ -73,8 +73,10 @@ Change any byte in `samples/receipt-wo-1.json` and it prints `FAIL`.
 
 ### 2. The keyless demo: real Switch, real Mattermost, scripted agents (no model keys)
 
-Needs Docker or rootless Podman with Compose v2, Rust 1.99, git and Python 3. The sandbox engine is
-explicit; there is no auto-detection.
+Needs Linux (or macOS with Homebrew bash 4+ and coreutils), Docker or rootless Podman with a working
+`docker compose` (Compose v2; on Podman install `podman-docker` and `docker-compose`), Rust 1.99 (pinned in
+`rust-toolchain.toml`), git, curl, openssl and Python 3. The first `make up` pulls a few GB of images.
+The sandbox engine is explicit; there is no auto-detection.
 
 ```bash
 make demo-offline ENGINE=docker      # or ENGINE=podman

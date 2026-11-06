@@ -114,7 +114,7 @@ Nine hours of Nov 4 were lost to a usage limit and a session restart. This plan 
 - **Template docs** have no creator, so the Notary can't edit them. The Notary creates its own docs (WO-N, receipts, Desk Status).
 
 ## 3. Repository
-New public repo **`Ritesh-Root/notary`** at `/home/ritesh/Documents/Flip the Switch Hackathon/notary` (MIT). A second small public repo, **`Ritesh-Root/acme-invoices`**, holds the demo repo. Console's `repo:` accepts only https/ssh URLs.
+Public repo **`Ritesh-Root/switch-notary`** (MIT). A second small public repo, **`Ritesh-Root/acme-invoices`**, holds the demo repo. Console's `repo:` accepts only https/ssh URLs.
 
 ```
 notary/

@@ -9,3 +9,4 @@ target/
 infra/notary.env
 .notary.pid
 __pycache__/
+.taste-skill/

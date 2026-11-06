@@ -12,7 +12,14 @@ fn main() {
     let mut it = args.iter();
     while let Some(a) = it.next() {
         match a.as_str() {
-            "--key" => key = it.next().cloned(),
+            // Never fall back to "any key": a pinned key that's missing is an error.
+            "--key" => {
+                let Some(k) = it.next() else {
+                    eprintln!("--key needs the expected public key in hex");
+                    std::process::exit(2);
+                };
+                key = Some(k.clone());
+            }
             "-h" | "--help" => {
                 println!("usage: notary-verify <receipt.json> [--key <public key hex>]");
                 return;

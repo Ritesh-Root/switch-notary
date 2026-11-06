@@ -9,8 +9,9 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use axum::extract::{Path, State};
+use axum::extract::{Path, Request, State};
 use axum::http::{StatusCode, header};
+use axum::middleware::{self, Next};
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
@@ -40,6 +41,7 @@ pub fn spawn(addr: SocketAddr, view: View) {
         .route("/api/ledger/{wo}", get(ledger))
         .route("/api/wo/{wo}", get(case_file))
         .route("/receipts/{file}", get(receipt_file))
+        .layer(middleware::from_fn(local_host_only))
         .with_state(Arc::new(view));
     tokio::spawn(async move {
         match tokio::net::TcpListener::bind(addr).await {
@@ -52,6 +54,26 @@ pub fn spawn(addr: SocketAddr, view: View) {
             Err(e) => eprintln!("notary: viewer couldn't bind {addr}: {e}"),
         }
     });
+}
+
+/// Answer only requests addressed to this machine by name, so a web page can't read the desk
+/// through DNS rebinding (a hostile name that resolves to 127.0.0.1).
+async fn local_host_only(req: Request, next: Next) -> Response {
+    let host = req.headers().get(header::HOST).and_then(|h| h.to_str().ok()).unwrap_or("");
+    if local_host(host) {
+        next.run(req).await
+    } else {
+        (StatusCode::MISDIRECTED_REQUEST, "open the viewer at http://127.0.0.1 or http://localhost").into_response()
+    }
+}
+
+/// `localhost:8090`, `127.0.0.1`, `[::1]:8090` → true; anything else → false.
+fn local_host(host: &str) -> bool {
+    let name = match host.strip_prefix('[') {
+        Some(rest) => rest.split(']').next().unwrap_or(""),
+        None => host.rsplit_once(':').map_or(host, |(name, _)| name),
+    };
+    matches!(name, "127.0.0.1" | "localhost" | "::1")
 }
 
 async fn messages(view: &View, room: &str) -> Value {
@@ -198,6 +220,16 @@ async fn receipt_file(State(view): State<Arc<View>>, Path(file): Path<String>) -
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn only_local_hosts_are_answered() {
+        for ok in ["127.0.0.1:8090", "localhost:8090", "localhost", "[::1]:8090", "127.0.0.1"] {
+            assert!(super::local_host(ok), "{ok}");
+        }
+        for bad in ["evil.example", "evil.example:8090", "127.0.0.1.evil.example", "localhost.evil:8090", "", "[::2]:8090"] {
+            assert!(!super::local_host(bad), "{bad}");
+        }
+    }
+
     #[test]
     fn work_order_ids_are_strict() {
         assert_eq!(super::wo_id("wo-12").as_deref(), Some("WO-12"));
