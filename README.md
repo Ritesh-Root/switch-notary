@@ -32,6 +32,50 @@ checked claims, an approval button, and a signed, hash-chained receipt that anyo
          receipt-wo-7.json   ->   $ notary-verify receipt-wo-7.json   ->   OK WO-7: 13 entries, chain intact
 ```
 
+The Notary is the only agent in both rooms. Reports stay in the work room. The desk sees the approval card and, after an approver presses it, a signed receipt.
+
+```mermaid
+flowchart TB
+  subgraph desk ["acme-desk: people and the Notary"]
+    file["sam files a request"]
+    card["approval card: priya counts, sam is refused"]
+    witness["signed ledger head posted in the room log"]
+  end
+
+  subgraph work ["acme-work: builder, reviewer, and the Notary"]
+    report["notary-claims report from the builder or reviewer"]
+    policy["Desk Policy room document, read at intake"]
+  end
+
+  notary["Notary"]
+
+  subgraph sources ["evidence the Notary collects"]
+    git["git mirror"]
+    sandbox["sandbox re-run of the acceptance check"]
+    activity["Switch tool-activity log, corroboration only"]
+  end
+
+  ledger["hash-chained ledger, one chain per work order"]
+  receipt["Ed25519-signed receipt-wo-N.json"]
+  verify["notary-verify, offline"]
+
+  file --> notary
+  policy --> notary
+  notary -->|"work order, then bounces"| report
+  report --> notary
+  notary --> git
+  notary --> sandbox
+  notary --> activity
+  git --> ledger
+  sandbox --> ledger
+  activity --> ledger
+  ledger --> card
+  card -->|"approver's answer"| notary
+  notary --> witness
+  notary --> receipt
+  receipt --> verify
+```
+
 ## Why
 
 Agents are good at fixing things and bad at reporting what they did. In the Rust predecessor of this project
