@@ -361,6 +361,24 @@ mod tests {
         assert!(text.contains("open the viewer at http://127.0.0.1 or http://localhost"), "{text}");
     }
 
+    /// The host gate is middleware on the whole router. `/api/state` is checked above; these are the other routes.
+    #[tokio::test]
+    async fn foreign_host_is_misdirected_on_every_other_route() {
+        let (_tmp, view) = sample_desk();
+        let (addr, _server) = serve(view).await;
+        let evidence = format!("/api/evidence/ev_{}", "ab".repeat(32));
+        for path in ["/", "/api/wo/WO-1", "/api/ledger/WO-1", evidence.as_str(), "/receipts/receipt-wo-1.json"] {
+            let mut stream = tokio::net::TcpStream::connect(addr).await.expect("connect");
+            let req = format!("GET {path} HTTP/1.1\r\nHost: evil.example\r\nConnection: close\r\n\r\n");
+            stream.write_all(req.as_bytes()).await.expect("write");
+            let mut buf = Vec::new();
+            tokio::time::timeout(Duration::from_secs(2), stream.read_to_end(&mut buf)).await.expect("foreign host timed out").expect("read");
+            let text = String::from_utf8_lossy(&buf);
+            assert!(text.starts_with("HTTP/1.1 421"), "{path}: {text}");
+            assert!(text.contains("open the viewer at http://127.0.0.1 or http://localhost"), "{path}: {text}");
+        }
+    }
+
     #[tokio::test]
     async fn get_api_wo_returns_the_case_file_or_a_plain_error() {
         let (_tmp, view) = sample_desk();
