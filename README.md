@@ -226,7 +226,7 @@ head is signed with Ed25519 and posted into the desk, and the bundle is uploaded
 ## Layout
 
 ```
-crates/notary-core   evidence, claims parser, judge, ledger, signing, receipts, renderer, notary-verify (42 tests)
+crates/notary-core   evidence, claims parser, judge, ledger, signing, receipts, renderer, notary-verify (45 tests)
 crates/notary        the agent: Switch client (WebSocket + HTTP), git mirror, podman/docker sandbox, desk state machine,
                      read-only viewer on 127.0.0.1:8090 (NOTARY_VIEW_ADDR=off to disable) (25 tests)
 templates/           the Switch rooms template (Desk Policy + Reporting Contract)
