@@ -291,3 +291,76 @@ fn set_private(dir: &Path) {
 fn current_id(flag: &str) -> String {
     std::process::Command::new("id").arg(flag).output().map_or_else(|_| "65534".into(), |o| String::from_utf8_lossy(&o.stdout).trim().to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use notary_core::errors::{Code, NotaryError};
+
+    use super::*;
+
+    /// A `result.json` the sandbox wrapper would write. `exit_code` is raw JSON so a test can pass a non-integer.
+    fn result_json(exit_code: &str) -> String {
+        format!(
+            r#"{{"protocol":"notary-run/1","run_id":"run1","sha":"abc","exit_code":{exit_code},"counts":{{"collected":2,"passed":1,"failed":1,"errors":0,"skipped":0}},"failed_ids":["test_pay"],"failed_truncated":false}}"#
+        )
+    }
+
+    struct Tmp(PathBuf);
+
+    impl Tmp {
+        fn create() -> Self {
+            let dir = std::env::temp_dir().join(format!("notary-result-{}", notary_core::signing::random_hex(6)));
+            std::fs::create_dir_all(&dir).expect("tmp dir");
+            Self(dir)
+        }
+
+        fn write(&self, bytes: &[u8]) -> PathBuf {
+            let path = self.0.join("result.json");
+            std::fs::write(&path, bytes).expect("write result.json");
+            path
+        }
+    }
+
+    impl Drop for Tmp {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn must_fail(path: &Path) -> NotaryError {
+        let Err(err) = read_result(path) else {
+            panic!("expected sandbox_failed");
+        };
+        err
+    }
+
+    #[test]
+    fn read_result_parses_a_valid_result() {
+        let tmp = Tmp::create();
+        let path = tmp.write(result_json("0").as_bytes());
+        let got = read_result(&path).expect("valid result");
+        assert_eq!(got.protocol, "notary-run/1");
+        assert_eq!(got.run_id, "run1");
+        assert_eq!(got.sha, "abc");
+        assert_eq!(got.exit_code, 0);
+        assert_eq!((got.counts.collected, got.counts.passed, got.counts.failed, got.counts.errors), (2, 1, 1, 0));
+        assert_eq!(got.failed_ids, ["test_pay"]);
+    }
+
+    #[test]
+    fn read_result_rejects_output_over_64_kib() {
+        let tmp = Tmp::create();
+        let path = tmp.write(&vec![b'x'; usize::try_from(MAX_RESULT).expect("64 KiB fits") + 1]);
+        let err = must_fail(&path);
+        assert_eq!(err, NotaryError::new(Code::SandboxFailed, "result.json isn't a regular file under 64 KiB"));
+    }
+
+    #[test]
+    fn read_result_rejects_a_malformed_exit_code() {
+        let tmp = Tmp::create();
+        let path = tmp.write(result_json("\"nope\"").as_bytes());
+        let err = must_fail(&path);
+        assert_eq!(err.code, Code::SandboxFailed);
+        assert!(err.detail.starts_with("result.json: invalid type:") && err.detail.contains("expected i32"), "{err}");
+    }
+}
