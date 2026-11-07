@@ -360,6 +360,65 @@ mod tests {
         assert_eq!(bad.text().await.expect("400 body"), "not a work order");
     }
 
+    #[tokio::test]
+    async fn get_api_ledger_returns_the_chain_or_a_plain_error() {
+        let (_tmp, view) = sample_desk();
+        let (addr, _server) = serve(view).await;
+        let http = client();
+
+        let resp = http.get(format!("http://{addr}/api/ledger/wo-1")).send().await.expect("GET /api/ledger/wo-1");
+        assert_eq!(resp.status().as_u16(), 200);
+        let body: Value = resp.json().await.expect("ledger json");
+        assert_eq!(body["wo"], "WO-1");
+        assert_eq!(body["chain"], "1 entries, chain intact");
+        let line = body["lines"][0].as_str().expect("policy line");
+        assert!(line.starts_with("1. `po_") && line.ends_with("` intake + Desk Policy"), "{line}");
+
+        let empty = http.get(format!("http://{addr}/api/ledger/WO-9")).send().await.expect("GET empty ledger");
+        assert_eq!(empty.status().as_u16(), 200);
+        let body: Value = empty.json().await.expect("empty ledger json");
+        assert_eq!(body["wo"], "WO-9");
+        assert_eq!(body["chain"], "0 entries, chain intact");
+        assert_eq!(body["lines"], json!([]));
+
+        let bad = http.get(format!("http://{addr}/api/ledger/WO-1a")).send().await.expect("GET bad id");
+        assert_eq!(bad.status().as_u16(), 400);
+        assert_eq!(bad.text().await.expect("400 body"), "not a work order");
+
+        let (_tmp, mut view) = sample_desk();
+        view.data_dir.push("missing");
+        let (addr, _server) = serve(view).await;
+        let down = http.get(format!("http://{addr}/api/ledger/WO-1")).send().await.expect("GET unreadable ledger");
+        assert_eq!(down.status().as_u16(), 503);
+        let text = down.text().await.expect("503 body");
+        assert!(text.starts_with("upstream_unavailable: sqlite:"), "{text}");
+    }
+
+    #[tokio::test]
+    async fn get_receipt_file_downloads_the_bundle_or_404() {
+        let payload = br#"{"protocol":"notary-receipt/1"}"#;
+        let (_tmp, view) = sample_desk();
+        let dir = view.data_dir.join("receipts");
+        std::fs::create_dir_all(&dir).expect("receipts dir");
+        std::fs::write(dir.join("receipt-wo-1.json"), payload).expect("receipt file");
+        let (addr, _server) = serve(view).await;
+        let http = client();
+
+        let resp = http.get(format!("http://{addr}/receipts/receipt-wo-1.json")).send().await.expect("GET receipt");
+        assert_eq!(resp.status().as_u16(), 200);
+        assert_eq!(resp.headers().get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok()), Some("application/json"));
+        assert_eq!(resp.headers().get(header::CONTENT_DISPOSITION).and_then(|v| v.to_str().ok()), Some("attachment; filename=\"receipt-wo-1.json\""));
+        assert_eq!(resp.bytes().await.expect("receipt bytes").as_ref(), payload);
+
+        let missing = http.get(format!("http://{addr}/receipts/receipt-wo-9.json")).send().await.expect("GET missing receipt");
+        assert_eq!(missing.status().as_u16(), 404);
+        assert!(missing.bytes().await.expect("404 body").is_empty());
+
+        let bad = http.get(format!("http://{addr}/receipts/receipt-wo-1.txt")).send().await.expect("GET bad name");
+        assert_eq!(bad.status().as_u16(), 404);
+        assert!(bad.bytes().await.expect("bad name body").is_empty());
+    }
+
     #[test]
     fn only_local_hosts_are_answered() {
         for ok in ["127.0.0.1:8090", "localhost:8090", "localhost", "[::1]:8090", "127.0.0.1"] {
