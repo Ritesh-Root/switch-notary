@@ -319,6 +319,19 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn get_root_serves_the_viewer_html() {
+        let (_tmp, view) = sample_desk();
+        let (addr, _server) = serve(view).await;
+        let resp = client().get(format!("http://{addr}/")).send().await.expect("GET /");
+        assert_eq!(resp.status().as_u16(), 200);
+        assert_eq!(resp.headers().get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok()), Some("text/html; charset=utf-8"));
+        let body = resp.text().await.expect("html");
+        assert!(body.starts_with("<!doctype html>"), "page does not start with the viewer doctype");
+        assert!(body.contains("<title>Notary</title>"));
+        assert!(body.contains("id=\"case\""));
+    }
+
+    #[tokio::test]
     async fn get_api_state_returns_the_desk_and_refuses_a_foreign_host() {
         let (_tmp, view) = sample_desk();
         let (addr, _server) = serve(view).await;
