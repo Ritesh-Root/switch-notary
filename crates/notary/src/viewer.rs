@@ -1,7 +1,8 @@
 //! A read-only window onto the desk, with no login: both rooms' messages (read through Switch's
 //! history API with the Notary's own key), the work orders, each work order's ledger, and the
 //! receipts, each checked with the same code as `notary-verify`. `/api/wo/{wo}` returns one work order's
-//! whole case file: its row, every ledger entry and record, and what each code in it means. It binds to localhost only and
+//! whole case file: its row, every ledger entry and record, and what each code in it means.
+//! `/api/evidence/{id}` returns one `ev_` record by id. It binds to localhost only and
 //! changes nothing; acting still happens in chat.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -39,6 +40,7 @@ fn router(view: Arc<View>) -> Router {
         .route("/api/state", get(state))
         .route("/api/ledger/{wo}", get(ledger))
         .route("/api/wo/{wo}", get(case_file))
+        .route("/api/evidence/{id}", get(evidence))
         .route("/receipts/{file}", get(receipt_file))
         .layer(middleware::from_fn(local_host_only))
         .with_state(view)
@@ -205,6 +207,23 @@ async fn case_file(State(view): State<Arc<View>>, Path(wo): Path<String>) -> Res
     Json(json!({"wo": wo, "order": order, "chain": chain, "entries": entries, "records": records, "codes": codes})).into_response()
 }
 
+/// One stored `ev_` record. The same JSON `/api/wo/{wo}` puts under `records`.
+async fn evidence(State(view): State<Arc<View>>, Path(id): Path<String>) -> Response {
+    if !notary_core::ids::is_id("ev", &id) {
+        return (StatusCode::BAD_REQUEST, "not evidence").into_response();
+    }
+    let ledger = match Ledger::open(&view.data_dir.join("ledger.db")) {
+        Ok(l) => l,
+        Err(e) => return (StatusCode::SERVICE_UNAVAILABLE, e.to_string()).into_response(),
+    };
+    match ledger.record(&id) {
+        Ok(Some(record)) => Json(json!({"id": id, "record": record})).into_response(),
+        Ok(None) => (StatusCode::NOT_FOUND, "no such evidence").into_response(),
+        // The row is there; its bytes no longer hash to the id, so it is not served.
+        Err(e) => (StatusCode::CONFLICT, e.to_string()).into_response(),
+    }
+}
+
 fn valid_receipt_name(name: &str) -> bool {
     name.strip_prefix("receipt-wo-").and_then(|r| r.strip_suffix(".json")).is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
 }
@@ -358,6 +377,52 @@ mod tests {
         let bad = http.get(format!("http://{addr}/api/wo/WO-1a")).send().await.expect("GET bad id");
         assert_eq!(bad.status().as_u16(), 400);
         assert_eq!(bad.text().await.expect("400 body"), "not a work order");
+    }
+
+    #[tokio::test]
+    async fn get_api_evidence_returns_the_record_or_a_plain_error() {
+        let (_tmp, view) = sample_desk();
+        let ledger_path = view.data_dir.join("ledger.db");
+        let ledger = Ledger::open(&ledger_path).expect("ledger");
+        let (id, _) = ledger.append("WO-1", RecordKind::Evidence, &json!({"result": {"failed": 1}})).expect("evidence");
+        let policy = ledger.entries("WO-1").expect("entries").into_iter().find(|e| e.kind == RecordKind::Policy).expect("policy").record;
+        drop(ledger);
+        let (addr, _server) = serve(view).await;
+        let http = client();
+
+        let resp = http.get(format!("http://{addr}/api/evidence/{id}")).send().await.expect("GET /api/evidence");
+        assert_eq!(resp.status().as_u16(), 200);
+        let body: Value = resp.json().await.expect("evidence json");
+        assert_eq!(body["id"], id);
+        assert_eq!(body["record"], json!({"result": {"failed": 1}}));
+
+        let unknown = format!("ev_{}", "ab".repeat(32));
+        let missing = http.get(format!("http://{addr}/api/evidence/{unknown}")).send().await.expect("GET missing evidence");
+        assert_eq!(missing.status().as_u16(), 404);
+        assert_eq!(missing.text().await.expect("404 body"), "no such evidence");
+
+        let bad = http.get(format!("http://{addr}/api/evidence/ev_123")).send().await.expect("GET short id");
+        assert_eq!(bad.status().as_u16(), 400);
+        assert_eq!(bad.text().await.expect("400 body"), "not evidence");
+
+        let other = http.get(format!("http://{addr}/api/evidence/{policy}")).send().await.expect("GET policy id");
+        assert_eq!(other.status().as_u16(), 400);
+        assert_eq!(other.text().await.expect("policy body"), "not evidence");
+
+        let db = Connection::open(&ledger_path).expect("ledger db");
+        db.execute("UPDATE records SET bytes = ?1 WHERE id = ?2", (br#"{"result":{"failed":0}}"#.to_vec(), id.as_str())).expect("tamper");
+        drop(db);
+        let tampered = http.get(format!("http://{addr}/api/evidence/{id}")).send().await.expect("GET tampered evidence");
+        assert_eq!(tampered.status().as_u16(), 409);
+        assert_eq!(tampered.text().await.expect("409 body"), format!("integrity_mismatch: record {id} changed after it was written"));
+
+        let (_tmp, mut view) = sample_desk();
+        view.data_dir.push("missing");
+        let (addr, _server) = serve(view).await;
+        let down = http.get(format!("http://{addr}/api/evidence/{unknown}")).send().await.expect("GET unreadable ledger");
+        assert_eq!(down.status().as_u16(), 503);
+        let text = down.text().await.expect("503 body");
+        assert!(text.starts_with("upstream_unavailable: sqlite:"), "{text}");
     }
 
     #[tokio::test]

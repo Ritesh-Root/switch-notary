@@ -336,6 +336,33 @@ interface SignedHead {
 }
 ```
 
+### `GET /api/evidence/{ev_…}`: one evidence record by id
+
+Read off `evidence` in `crates/notary/src/viewer.rs` on Nov 7, from the source. This route was not in the Nov 6 `make demo-offline` capture, so there is no sample body from that run here. The same object is the value at `records[id]` in `GET /api/wo/{WO-N}` when that work order's ledger names the id. The 421 host rule above applies. Statuses below are what `get_api_evidence_returns_the_record_or_a_plain_error` asserts.
+
+| Status | When | Body |
+|---|---|---|
+| 200 | id is `ev_` plus 64 lowercase hex digits, `ledger.db` opens, and the stored bytes still hash to that id | `EvidenceRecord` JSON |
+| 400 | id fails that check (any other prefix, a short id, or uppercase hex) | `not evidence` |
+| 404 | the id is well formed and the ledger opens, but `records` has no such row | `no such evidence` |
+| 409 | the row exists and its bytes no longer hash to the id | `integrity_mismatch: record {id} changed after it was written` |
+| 503 | `Ledger::open` fails | `{code}: {detail}`. The missing-directory case the test hits starts with `upstream_unavailable: sqlite:`. |
+
+```ts
+/** 200 JSON from GET /api/evidence/{ev_…}. */
+interface EvidenceRecord {
+  /** The path id, unchanged. */
+  id: string;
+  /**
+   * Stored JSON, re-hashed on the way out (`Ledger::record`). The handler
+   * does not parse it. A record the Notary sealed is an evidence body
+   * (authority, confidence, coverage, subject, operation, params, result,
+   * limitations); see `Body` in `crates/notary-core/src/evidence.rs`.
+   */
+  record: unknown;
+}
+```
+
 ### The structured blocks inside messages
 Messages are Markdown-ish text: `` `code` ``, `**bold**`, and fenced blocks. Three block
 types carry structured data. Parse them with ```` /```([\w-]*)\n([\s\S]*?)```/g ````:
@@ -444,6 +471,5 @@ numbers, Inter for text, JetBrains Mono for IDs and code (Google Fonts, with sys
 
 ## 7. Still open
 
-- `GET /api/evidence/{ev_…}` on its own (today it comes inside `/api/wo/{WO-N}`).
 - A `verdict` field on each `checked` item in `notary-verdict` chat blocks (the ledger audits already have it).
 - Server-sent events instead of polling.
