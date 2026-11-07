@@ -118,3 +118,113 @@ impl Mirror {
         if status.success() { Ok(()) } else { Err(NotaryError::new(Code::SandboxFailed, "tar couldn't unpack the archive")) }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+    use std::process::Command;
+
+    use notary_core::errors::{Code, NotaryError};
+
+    use super::*;
+
+    fn git(dir: &Path, args: &[&str]) -> String {
+        let out = Command::new("git")
+            .current_dir(dir)
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .env("GIT_CONFIG_SYSTEM", "/dev/null")
+            .env("GIT_AUTHOR_NAME", "Notary")
+            .env("GIT_AUTHOR_EMAIL", "notary@example.com")
+            .env("GIT_COMMITTER_NAME", "Notary")
+            .env("GIT_COMMITTER_EMAIL", "notary@example.com")
+            .args(args)
+            .output()
+            .unwrap_or_else(|e| panic!("git: {e}"));
+        assert!(out.status.success(), "git {args:?}\n{}", String::from_utf8_lossy(&out.stderr));
+        String::from_utf8_lossy(&out.stdout).trim().to_string()
+    }
+
+    struct Repo {
+        dir: PathBuf,
+        base: String,
+        head: String,
+        side: String,
+    }
+
+    impl Drop for Repo {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.dir);
+        }
+    }
+
+    impl Repo {
+        fn open() -> Self {
+            let dir = std::env::temp_dir().join(format!("notary-git-{}", notary_core::signing::random_hex(6)));
+            std::fs::create_dir_all(&dir).expect("repo dir");
+            git(&dir, &["init", "-b", "main"]);
+            std::fs::write(dir.join("README"), "one\n").expect("README");
+            git(&dir, &["add", "README"]);
+            git(&dir, &["commit", "-m", "init"]);
+            let base = git(&dir, &["rev-parse", "HEAD"]);
+            std::fs::write(dir.join("src.txt"), "body\n").expect("src");
+            git(&dir, &["add", "src.txt"]);
+            git(&dir, &["commit", "-m", "add src"]);
+            let head = git(&dir, &["rev-parse", "HEAD"]);
+            git(&dir, &["checkout", "-q", "-b", "side", &base]);
+            std::fs::write(dir.join("side.txt"), "side\n").expect("side");
+            git(&dir, &["add", "side.txt"]);
+            git(&dir, &["commit", "-m", "side"]);
+            let side = git(&dir, &["rev-parse", "HEAD"]);
+            git(&dir, &["checkout", "-q", "main"]);
+            Self { dir, base, head, side }
+        }
+
+        fn mirror(&self) -> Mirror {
+            Mirror { url: self.dir.display().to_string(), dir: self.dir.clone() }
+        }
+    }
+
+    #[tokio::test]
+    async fn branch_head_errors_when_the_branch_is_absent() {
+        let repo = Repo::open();
+        let mirror = repo.mirror();
+        assert_eq!(mirror.branch_head("main").await.expect("main exists"), repo.head);
+        assert_eq!(mirror.branch_head("side").await.expect("side exists"), repo.side);
+        let err = mirror.branch_head("no-such-branch").await.expect_err("missing branch");
+        assert_eq!(err, NotaryError::new(Code::UpstreamUnavailable, "no branch no-such-branch"));
+    }
+
+    #[tokio::test]
+    async fn diff_names_errors_when_a_commit_is_unknown() {
+        let repo = Repo::open();
+        let mirror = repo.mirror();
+        assert_eq!(mirror.diff_names(&repo.base, &repo.head).await.expect("known commits"), vec!["src.txt".to_string()]);
+        let missing = "a".repeat(40);
+        let err = mirror.diff_names(&missing, &repo.head).await.expect_err("unknown base");
+        assert_eq!(err.code, Code::UpstreamUnavailable);
+        assert!(err.detail.starts_with("git diff:"), "{err}");
+    }
+
+    #[tokio::test]
+    async fn on_branch_is_false_when_the_ref_is_absent_and_errors_when_git_cannot_start() {
+        let repo = Repo::open();
+        let mirror = repo.mirror();
+        assert!(mirror.on_branch(&repo.head, "main").await.expect("git runs"));
+        assert!(mirror.on_branch(&repo.base, "side").await.expect("base is on side"));
+        // A missing branch or a commit that is not an ancestor is `Ok(false)`, not an error.
+        assert!(!mirror.on_branch(&repo.side, "main").await.expect("side is not on main"));
+        assert!(!mirror.on_branch(&repo.head, "no-such-branch").await.expect("missing branch is false"));
+
+        // `Err` only when git itself cannot run. An argument past ARG_MAX fails the spawn.
+        let limit = git_arg_max();
+        let err = mirror.on_branch(&repo.head, &"b".repeat(limit)).await.expect_err("git must fail to start");
+        assert_eq!(err.code, Code::UpstreamUnavailable);
+        assert!(err.detail.starts_with("git merge-base:"), "{err}");
+    }
+
+    fn git_arg_max() -> usize {
+        let out = Command::new("getconf").arg("ARG_MAX").output().expect("getconf ARG_MAX");
+        assert!(out.status.success(), "getconf ARG_MAX\n{}", String::from_utf8_lossy(&out.stderr));
+        String::from_utf8_lossy(&out.stdout).trim().parse().expect("ARG_MAX is a number")
+    }
+}
