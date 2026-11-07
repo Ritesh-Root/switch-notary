@@ -368,7 +368,7 @@ Read off `evidence` in `crates/notary/src/viewer.rs` on Nov 7, from the source. 
 | 400 | id fails that check (any other prefix, a short id, or uppercase hex) | `not evidence` |
 | 404 | the id is well formed and the ledger opens, but `records` has no such row | `no such evidence` |
 | 409 | the row exists and its bytes no longer hash to the id | `integrity_mismatch: record {id} changed after it was written` |
-| 503 | `Ledger::open` fails | `{code}: {detail}`. The missing-directory case the test hits starts with `upstream_unavailable: sqlite:`. |
+| 503 | `Ledger::open` fails, or reading the row fails (for example SQLite busy) | `{code}: {detail}`. The missing-directory case the test hits starts with `upstream_unavailable: sqlite:`. |
 
 ```ts
 /** 200 JSON from GET /api/evidence/{ev_…}. */

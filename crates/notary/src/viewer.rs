@@ -220,7 +220,8 @@ async fn evidence(State(view): State<Arc<View>>, Path(id): Path<String>) -> Resp
         Ok(Some(record)) => Json(json!({"id": id, "record": record})).into_response(),
         Ok(None) => (StatusCode::NOT_FOUND, "no such evidence").into_response(),
         // The row is there; its bytes no longer hash to the id, so it is not served.
-        Err(e) => (StatusCode::CONFLICT, e.to_string()).into_response(),
+        Err(e) if e.code == Code::IntegrityMismatch => (StatusCode::CONFLICT, e.to_string()).into_response(),
+        Err(e) => (StatusCode::SERVICE_UNAVAILABLE, e.to_string()).into_response(),
     }
 }
 
