@@ -33,16 +33,20 @@ pub struct View {
     pub key: String,
 }
 
-/// Serve the viewer on `addr` until the process exits.
-pub fn spawn(addr: SocketAddr, view: View) {
-    let app = Router::new()
+fn router(view: Arc<View>) -> Router {
+    Router::new()
         .route("/", get(|| async { Html(PAGE) }))
         .route("/api/state", get(state))
         .route("/api/ledger/{wo}", get(ledger))
         .route("/api/wo/{wo}", get(case_file))
         .route("/receipts/{file}", get(receipt_file))
         .layer(middleware::from_fn(local_host_only))
-        .with_state(Arc::new(view));
+        .with_state(view)
+}
+
+/// Serve the viewer on `addr` until the process exits.
+pub fn spawn(addr: SocketAddr, view: View) {
+    let app = router(Arc::new(view));
     tokio::spawn(async move {
         match tokio::net::TcpListener::bind(addr).await {
             Ok(listener) => {
@@ -220,6 +224,142 @@ async fn receipt_file(State(view): State<Arc<View>>, Path(file): Path<String>) -
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    use notary_core::ledger::{Ledger, RecordKind};
+    use rusqlite::Connection;
+    use serde_json::{Value, json};
+
+    use super::*;
+
+    struct Tmp(PathBuf);
+
+    impl Drop for Tmp {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    /// Aborts the viewer task. Dropping the handle alone would detach it.
+    struct Server(tokio::task::JoinHandle<()>);
+
+    impl Drop for Server {
+        fn drop(&mut self) {
+            self.0.abort();
+        }
+    }
+
+    /// One approved order and one policy entry. Switch is a closed port, so a room read is the
+    /// viewer's own error line.
+    fn sample_desk() -> (Tmp, View) {
+        let dir = std::env::temp_dir().join(format!("notary-view-{}", notary_core::signing::random_hex(6)));
+        std::fs::create_dir_all(&dir).expect("tmp dir");
+        let db = Connection::open(dir.join("desk.db")).expect("desk.db");
+        db.execute_batch(
+            "CREATE TABLE work_orders (
+                 n INTEGER PRIMARY KEY AUTOINCREMENT, wo TEXT UNIQUE, requester TEXT NOT NULL, title TEXT NOT NULL,
+                 base TEXT NOT NULL, branch TEXT NOT NULL, policy TEXT NOT NULL, state TEXT NOT NULL,
+                 attempts INTEGER NOT NULL DEFAULT 0, builder_audit TEXT, approval TEXT, created_ms INTEGER NOT NULL);
+             INSERT INTO work_orders (wo, requester, title, base, branch, policy, state, attempts, created_ms)
+             VALUES ('WO-1', 'sam', 'Ship the invoice export', 'abc', 'wo-1', '{}', 'approved', 1, 1700000000000);",
+        )
+        .expect("seed desk");
+        drop(db);
+        let ledger = Ledger::open(&dir.join("ledger.db")).expect("ledger");
+        ledger.append("WO-1", RecordKind::Policy, &json!({"protocol": "notary-intake/1"})).expect("policy entry");
+        drop(ledger);
+        let closed = std::net::TcpListener::bind("127.0.0.1:0").expect("closed port");
+        let port = closed.local_addr().expect("addr").port();
+        drop(closed);
+        let view = View {
+            agent: Agent::new(&format!("http://127.0.0.1:{port}"), "notary-test", "test-key"),
+            hub: "team-desk".into(),
+            work: "team-work".into(),
+            data_dir: dir.clone(),
+            key: "dd".into(),
+        };
+        (Tmp(dir), view)
+    }
+
+    async fn serve(view: View) -> (std::net::SocketAddr, Server) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("viewer bind");
+        let addr = listener.local_addr().expect("viewer addr");
+        let app = router(Arc::new(view));
+        let handle = tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+        (addr, Server(handle))
+    }
+
+    fn client() -> reqwest::Client {
+        reqwest::Client::builder().timeout(Duration::from_secs(5)).build().expect("client")
+    }
+
+    #[tokio::test]
+    async fn get_api_state_returns_the_desk_and_refuses_a_foreign_host() {
+        let (_tmp, view) = sample_desk();
+        let (addr, _server) = serve(view).await;
+        let resp = client().get(format!("http://{addr}/api/state")).send().await.expect("GET /api/state");
+        assert_eq!(resp.status().as_u16(), 200);
+        let body: Value = resp.json().await.expect("state json");
+        assert_eq!(body["key"], "dd");
+        assert_eq!(body["receipts"], json!([]));
+        assert_eq!(body["work_orders"].as_array().expect("orders").len(), 1);
+        assert_eq!(body["work_orders"][0]["wo"], "WO-1");
+        assert_eq!(body["work_orders"][0]["requester"], "sam");
+        assert_eq!(body["work_orders"][0]["state"], "approved");
+        assert_eq!(body["work_orders"][0]["attempts"], 1);
+        for room in ["desk", "work"] {
+            assert_eq!(body[room][0]["sender_name"], "viewer", "{room}");
+            assert_eq!(body[room][0]["timestamp"], Value::Null, "{room}");
+            let text = body[room][0]["body"].as_str().expect("error text");
+            assert!(text.contains("couldn't read this room from Switch"), "{room}: {text}");
+        }
+
+        let mut stream = tokio::net::TcpStream::connect(addr).await.expect("connect");
+        stream.write_all(b"GET /api/state HTTP/1.1\r\nHost: evil.example\r\nConnection: close\r\n\r\n").await.expect("write");
+        let mut buf = Vec::new();
+        tokio::time::timeout(Duration::from_secs(2), stream.read_to_end(&mut buf)).await.expect("foreign host timed out").expect("read");
+        let text = String::from_utf8_lossy(&buf);
+        assert!(text.starts_with("HTTP/1.1 421"), "{text}");
+        assert!(text.contains("open the viewer at http://127.0.0.1 or http://localhost"), "{text}");
+    }
+
+    #[tokio::test]
+    async fn get_api_wo_returns_the_case_file_or_a_plain_error() {
+        let (_tmp, view) = sample_desk();
+        let (addr, _server) = serve(view).await;
+        let http = client();
+
+        let resp = http.get(format!("http://{addr}/api/wo/wo-1")).send().await.expect("GET /api/wo/wo-1");
+        assert_eq!(resp.status().as_u16(), 200);
+        let body: Value = resp.json().await.expect("case json");
+        assert_eq!(body["wo"], "WO-1");
+        assert_eq!(body["order"]["title"], "Ship the invoice export");
+        assert_eq!(body["order"]["branch"], "wo-1");
+        assert_eq!(body["order"]["created_ms"], json!(1_700_000_000_000_i64));
+        assert_eq!(body["chain"], json!({"ok": true, "entries": 1}));
+        assert_eq!(body["entries"][0]["seq"], 1);
+        assert_eq!(body["entries"][0]["kind"], "policy");
+        let records = body["records"].as_object().expect("records");
+        assert_eq!(records.len(), 1);
+        assert_eq!(records.values().next().expect("policy")["protocol"], "notary-intake/1");
+        assert_eq!(body["codes"]["revision_limit"]["retryable"], false);
+        assert_eq!(body["codes"]["not_an_approver"]["fixer"], "human");
+
+        let missing = http.get(format!("http://{addr}/api/wo/WO-9")).send().await.expect("GET missing");
+        assert_eq!(missing.status().as_u16(), 404);
+        assert_eq!(missing.text().await.expect("404 body"), "no such work order");
+
+        let bad = http.get(format!("http://{addr}/api/wo/WO-1a")).send().await.expect("GET bad id");
+        assert_eq!(bad.status().as_u16(), 400);
+        assert_eq!(bad.text().await.expect("400 body"), "not a work order");
+    }
+
     #[test]
     fn only_local_hosts_are_answered() {
         for ok in ["127.0.0.1:8090", "localhost:8090", "localhost", "[::1]:8090", "127.0.0.1"] {
