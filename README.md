@@ -76,6 +76,22 @@ flowchart TB
   receipt --> verify
 ```
 
+## What the viewer shows
+
+These three frames are the Notary's read-only viewer after the keyless demo (`make demo-offline`): six scripted work orders, no model keys. The agents in the pictures are `demo-builder` and `demo-reviewer`, not a Claude Code or OpenCode session. The files in `docs/img/` are the screenshots as captured.
+
+WO-1 is approved. Priya's press counts. Sam pressed the same card and the desk records `not_an_approver`. The room log shows signed head `62eb84daae712472…` (13 entries, key `431d229c445b0fd6…`), the receipt `make verify-sample` checks.
+
+![WO-1 approved in the viewer. The receipt is verified, priya's approval counted, and sam's press is marked not on the approver list.](docs/img/case-approved-receipt.png)
+
+WO-2 is the liar. Three builder reports, both bounces used, and the Notary's own run is still 17/18: `tests/test_reports.py::test_report_reconciles_with_invoices` failed. The card is flagged `revision_limit` and `tests_failed`, review was skipped, and it is waiting on priya.
+
+![WO-2 awaiting approval. Claim c3 is contradicted, with revision_limit and tests_failed flagged on the card.](docs/img/desk-awaiting-approval.png)
+
+The Live rooms tab is the gate. The desk (left) only has results the Notary already checked. The work room (right) still has the raw claims. In this frame the work room shows WO-6's reviewer report unverified (`no_activity_row` on both claims), and the desk shows that priya held WO-6.
+
+![Viewer Live rooms tab after the scripted demo: desk on the left, work room on the right.](docs/img/live-rooms.png)
+
 ## Why
 
 Agents are good at fixing things and bad at reporting what they did. In the Rust predecessor of this project
@@ -144,8 +160,10 @@ This does the following:
 
 **Watch it at http://localhost:8090.** That's the Notary's read-only viewer, with no login: both rooms
 live (read from Switch), the work orders, each one's ledger, and every receipt checked the same way
-`notary-verify` checks it. To act in chat yourself, Mattermost is at http://localhost:8065 (team `switch`);
-the logins are in `infra/.env` (`MATTERMOST_USER_PASSWORD`, `DEMO_PASSWORD_PRIYA`, `DEMO_PASSWORD_SAM`).
+`notary-verify` checks it. Screenshots of that viewer after this scripted run are in
+[What the viewer shows](#what-the-viewer-shows). To act in chat yourself, Mattermost is at
+http://localhost:8065 (team `switch`); the logins are in `infra/.env` (`MATTERMOST_USER_PASSWORD`,
+`DEMO_PASSWORD_PRIYA`, `DEMO_PASSWORD_SAM`).
 
 ### 3. Live: Claude Code builds, OpenCode reviews
 
