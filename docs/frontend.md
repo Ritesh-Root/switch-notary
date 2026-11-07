@@ -116,6 +116,129 @@ login, localhost only, and nothing in it changes state. Everything below comes f
 - `chain` is `{"ok": false, "error": "broken at entry N: …"}` if the ledger was tampered with.
 - 400 for a malformed ID, 404 for an unknown work order.
 
+### Types for `GET /api/state` and `GET /api/wo/{WO-N}`
+
+Read off `state` and `case_file` in `crates/notary/src/viewer.rs` on Nov 7, from the source. The JSON samples above remain the Nov 6 `make demo-offline` responses.
+
+A local `Host` (`127.0.0.1`, `localhost`, or `::1`) is required on every route. Anything else is **421** with the plain text `open the viewer at http://127.0.0.1 or http://localhost`. The other non-200 bodies are plain text too, and only `/api/wo/{id}` returns them:
+
+| Status | When | Body |
+|---|---|---|
+| 400 | id is not `WO-` plus 1–9 digits (any case; the handler uppercases it) | `not a work order` |
+| 404 | `desk.db` has no row for that id | `no such work order` |
+| 503 | `desk.db` can't be opened, or the row query fails | `couldn't read the desk: ` plus the SQLite error |
+| 503 | `ledger.db` can't be opened | the ledger error, `{code}: {detail}` |
+
+`GET /api/state` is 200 when the host is local, including when a room, `desk.db`, or `receipts/` can't be read.
+
+```ts
+/** 200 JSON from GET /api/state. */
+interface DeskState {
+  /** Hex public signing key, full string, as loaded. */
+  key: string;
+  /** See RoomFeed. */
+  desk: RoomFeed;
+  work: RoomFeed;
+  /** Newest first, at most 50. [] when desk.db can't be read. */
+  work_orders: WorkOrderRow[];
+  /** Checked with the same code as notary-verify. [] when receipts/ can't be read. */
+  receipts: ReceiptCheck[];
+}
+
+/**
+ * On success, Switch's `events` value copied through (an array of RoomMessage
+ * when history matches the shape Agent::history documents). If that key is
+ * missing, JSON null. If the room can't be read, one RoomReadError.
+ */
+type RoomFeed = RoomMessage[] | [RoomReadError] | null;
+
+/** Fields the page reads. Switch may add others; this server does not strip them. */
+interface RoomMessage {
+  sender_name?: string;
+  sender?: string;
+  body?: string;
+  /** Milliseconds. */
+  timestamp?: number | null;
+}
+
+interface RoomReadError {
+  sender_name: "viewer";
+  body: string;
+  timestamp: null;
+}
+
+interface WorkOrderRow {
+  wo: string;
+  title: string;
+  requester: string;
+  /** Text from the desk. The states the desk writes are in section 2. */
+  state: string;
+  /** Builder reports so far (SQLite integer). */
+  attempts: number;
+}
+
+interface ReceiptOk {
+  file: string;
+  /** head.run from the receipt, the work-order id. */
+  wo: string;
+  ok: true;
+  /** How many entries, not the entries. */
+  entries: number;
+  head: string;
+}
+
+interface ReceiptBad {
+  file: string;
+  ok: false;
+  why: string;
+}
+
+type ReceiptCheck = ReceiptOk | ReceiptBad;
+
+/** 200 JSON from GET /api/wo/{WO-N}. */
+interface CaseFile {
+  wo: string;
+  order: WorkOrderDetail;
+  chain: ChainOk | ChainBroken;
+  entries: LedgerEntry[];
+  /** Record id to the stored JSON value. {} when the export fails; entries may still be present. */
+  records: Record<string, unknown>;
+  /** Always includes revision_limit and not_an_approver, plus every known code under checked and findings of au_* records. Unknown code strings are skipped. Keys are sorted. */
+  codes: Record<string, CodeMeaning>;
+}
+
+interface WorkOrderDetail extends WorkOrderRow {
+  base: string;
+  branch: string;
+  created_ms: number;
+}
+
+interface ChainOk {
+  ok: true;
+  entries: number;
+}
+
+interface ChainBroken {
+  ok: false;
+  error: string;
+}
+
+interface LedgerEntry {
+  seq: number;
+  at_ms: number;
+  kind: "evidence" | "policy" | "report" | "audit" | "decision";
+  record: string;
+  prev: string;
+  hash: string;
+}
+
+interface CodeMeaning {
+  retryable: boolean;
+  fixer: "builder" | "human" | "operator" | "notary";
+  remediation: string;
+}
+```
+
 ### `GET /api/ledger/{WO-N}`: the evidence trail of one work order, as text
 ```json
 {"wo": "WO-1", "chain": "13 entries, chain intact", "lines": [
