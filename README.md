@@ -135,7 +135,9 @@ only ever see what the Notary could check.
 
 Three levels, from no setup to the real agents.
 
-### 1. Verify a real receipt (needs only Rust 1.99)
+**Toolchain.** `rust-toolchain.toml` pins channel `1.99` and the `rustfmt` and `clippy` components. With rustup on `PATH`, `cargo` in this directory uses that pin. A cargo installed without rustup ignores the file. `Cargo.toml` sets `edition = "2024"` and `rust-version = "1.99"`, so rustc older than 1.99 does not build the workspace. CI installs the same pin (`.github/workflows/ci.yml`: `dtolnay/rust-toolchain`, toolchain `1.99`, components `rustfmt, clippy`). `make verify-sample` builds `notary-verify` only. Bundled SQLite (`rusqlite` feature `bundled`; `libsqlite3-sys` depends on `cc` in `Cargo.lock`) needs a C compiler. `make test`, `make lint` and `make build` also build crate `notary`. That crate's `reqwest` dependency uses `rustls`, and `Cargo.lock` builds `aws-lc-sys` with `cc` and `cmake`, so those targets need CMake as well.
+
+### 1. Verify a real receipt (Rust 1.99 and a C compiler)
 
 ```bash
 make verify-sample
@@ -147,8 +149,8 @@ Change any byte in `samples/receipt-wo-1.json` and it prints `FAIL`.
 ### 2. The keyless demo: real Switch, real Mattermost, scripted agents (no model keys)
 
 Needs Linux (or macOS with Homebrew bash 4+ and coreutils), Docker or rootless Podman with a working
-`docker compose` (Compose v2; on Podman install `podman-docker` and `docker-compose`), Rust 1.99 (pinned in
-`rust-toolchain.toml`), git, curl, openssl and Python 3. The first `make up` pulls a few GB of images.
+`docker compose` (Compose v2; on Podman install `podman-docker` and `docker-compose`), the toolchain above,
+git, curl, openssl and Python 3. The first `make up` pulls a few GB of images.
 The sandbox engine is explicit; there is no auto-detection.
 
 ```bash
