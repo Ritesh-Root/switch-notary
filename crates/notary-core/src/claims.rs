@@ -314,4 +314,32 @@ mod tests {
         let other = format!("```notary-claimsX\n{}\n```", good());
         assert_eq!(parse(&other).unwrap_err().code, Code::BlockMissing);
     }
+
+    #[test]
+    fn repo_paths_reject_traversal_and_globs() {
+        let max = "a".repeat(300);
+        for ok in ["src/invoices/tax.py", "conftest.py", ".github/workflows/ci.yml", "src/foo..bar.py", "src/räkning.py", max.as_str()] {
+            assert!(is_repo_path(ok), "{ok}");
+        }
+        let too_long = "a".repeat(301);
+        for bad in [
+            "",
+            too_long.as_str(),
+            "/etc/passwd",
+            "src/../etc/passwd",
+            "..",
+            ".",
+            "src/./tax.py",
+            "src//tax.py",
+            "src/",
+            "src\\tax.py",
+            "src/**",
+            "src/file?.py",
+            "src/[id].py",
+            "src/\nfile.py",
+            "src/\0file.py",
+        ] {
+            assert!(!is_repo_path(bad), "{bad:?}");
+        }
+    }
 }
