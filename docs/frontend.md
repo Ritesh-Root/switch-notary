@@ -269,6 +269,73 @@ The response is the full bundle, served as an attachment:
 ```
 The receipt is the richest structured source: every audit with per-claim verdicts and evidence.
 
+### Types for `GET /api/ledger/{WO-N}` and `GET /receipts/{file}`
+
+Read off `ledger` and `receipt_file` in `crates/notary/src/viewer.rs`, `Bundle` in
+`crates/notary-core/src/receipt.rs`, and `SignedHead` in `crates/notary-core/src/signing.rs`
+on Nov 7, from the source. The status rows are what
+`get_api_ledger_returns_the_chain_or_a_plain_error` and
+`get_receipt_file_downloads_the_bundle_or_404` assert. The 421 host rule above applies
+to both routes. The JSON samples above remain the Nov 6 `make demo-offline` responses.
+
+| Status | Route | When | Body |
+|---|---|---|---|
+| 200 | `GET /api/ledger/{id}` | id is `WO-` plus 1–9 digits, and `ledger.db` opens | `LedgerTrail` JSON. An id with no rows is still 200: `chain` is `0 entries, chain intact` and `lines` is `[]`. |
+| 400 | `GET /api/ledger/{id}` | id fails that check | `not a work order` |
+| 503 | `GET /api/ledger/{id}` | `Ledger::open` fails | `{code}: {detail}`. The missing-directory case the test hits starts with `upstream_unavailable: sqlite:`. |
+| 200 | `GET /receipts/{file}` | name is `receipt-wo-` plus one or more digits plus `.json`, and that file reads | the stored bytes, unchanged. `Content-Type: application/json`. `Content-Disposition: attachment; filename="{file}"`. A file the Notary wrote is a `ReceiptBundle`. The handler returns the bytes whether or not they parse. |
+| 404 | `GET /receipts/{file}` | the name fails that check, or the file is missing or unreadable | empty |
+
+```ts
+/** 200 JSON from GET /api/ledger/{WO-N}. `chain` is a string here. */
+interface LedgerTrail {
+  /** Uppercased by the handler. */
+  wo: string;
+  /**
+   * "{n} entries, chain intact" when Ledger::verify returns n (n can be 0).
+   * "broken at entry {seq}: {reason}" when it returns Broken. A failed entry
+   * read uses seq 0 and still responds 200. See ledger() in viewer.rs.
+   */
+  chain: string;
+  /**
+   * One preformatted line per entry, in seq order, from ledger_lines.
+   * [] when that work order has no entries. Also [] when the entry read
+   * fails; `chain` then starts with "broken at entry 0:".
+   */
+  lines: string[];
+}
+
+/**
+ * The file the Notary writes: Bundle in receipt.rs, protocol notary-receipt/1.
+ * GET /receipts/{file} serves those bytes with the headers above. It does not
+ * parse them, so a 200 body is this shape only when the file on disk is.
+ */
+interface ReceiptBundle {
+  /** receipt::verify rejects any other string. */
+  protocol: "notary-receipt/1";
+  head: SignedHead;
+  /** Same object as LedgerEntry above. */
+  entries: LedgerEntry[];
+  /** Record id to the stored JSON value. BTreeMap, so the keys are sorted. */
+  records: Record<string, unknown>;
+}
+
+/** SignedHead in crates/notary-core/src/signing.rs. Numbers are JSON numbers. */
+interface SignedHead {
+  /** Work-order id (head.run). The receipt list calls this `wo`. */
+  run: string;
+  /** How many entries the signature covers. */
+  entries: number;
+  /** Hash of the last entry. */
+  head: string;
+  at_ms: number;
+  /** Hex Ed25519 public key. */
+  key: string;
+  /** Hex Ed25519 signature over SignedHead::statement. */
+  signature: string;
+}
+```
+
 ### The structured blocks inside messages
 Messages are Markdown-ish text: `` `code` ``, `**bold**`, and fenced blocks. Three block
 types carry structured data. Parse them with ```` /```([\w-]*)\n([\s\S]*?)```/g ````:
