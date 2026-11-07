@@ -1,5 +1,10 @@
 # Notary
 
+[![ci](https://github.com/Ritesh-Root/switch-notary/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Ritesh-Root/switch-notary/actions/workflows/ci.yml)
+[![Rust 1.99](https://img.shields.io/badge/rust-1.99-93450a)](rust-toolchain.toml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![Switch 0.31.0](https://img.shields.io/badge/switch-0.31.0-111111)](scripts/gen-env.sh)
+
 **AI coworkers that have to show receipts.** Notary is a work-order desk built on
 [Switch](https://github.com/sandbox-quantum/switch). People file requests in team chat. AI agents
 (Claude Code, OpenCode) do the work in a separate room. A Notary agent checks every claim they make
