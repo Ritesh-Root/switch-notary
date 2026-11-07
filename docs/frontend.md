@@ -1,7 +1,8 @@
 # Notary: a brief for building a front end
 
-Everything here was checked against the running code on Nov 6 (commit `0d4bd3f`). The JSON
-samples are real responses from a `make demo-offline` run.
+The routes, status codes, and TypeScript types in section 3 were read from the source at
+commit `ed414eb` (Nov 7). The JSON samples are real responses from a Nov 6 `make demo-offline`
+run (commit `0d4bd3f`). That run was not repeated against `ed414eb`.
 
 ## 1. What Notary is
 
