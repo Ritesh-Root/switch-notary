@@ -83,7 +83,7 @@ flowchart TB
 
 ## What the viewer shows
 
-These three frames are the Notary's read-only viewer after the keyless demo (`make demo-offline`): six scripted work orders, no model keys. The agents in the pictures are `demo-builder` and `demo-reviewer`, not a Claude Code or OpenCode session. The files in `docs/img/` are the screenshots as captured.
+These frames are the Notary's read-only viewer after the keyless demo (`make demo-offline`): six scripted work orders, no model keys. The agents in the pictures are `demo-builder` and `demo-reviewer`, not a Claude Code or OpenCode session. The files in `docs/img/` are the screenshots as captured.
 
 WO-1 is approved. Priya's press counts. Sam pressed the same card and the desk records `not_an_approver`. The room log shows signed head `62eb84daae712472…` (13 entries, key `431d229c445b0fd6…`), the receipt `make verify-sample` checks.
 
@@ -96,6 +96,14 @@ WO-2 is the liar. Three builder reports, both bounces used, and the Notary's own
 The Live rooms tab is the gate. The desk (left) only has results the Notary already checked. The work room (right) still has the raw claims. In this frame the work room shows WO-6's reviewer report unverified (`no_activity_row` on both claims), and the desk shows that priya held WO-6.
 
 ![Viewer Live rooms tab after the scripted demo: desk on the left, work room on the right.](docs/img/live-rooms.png)
+
+The same viewer at phone width. `crates/notary/src/viewer.html` hides the work-order rail at 1100 px and stacks the five steps at 900 px. This file is 390×844, so both rules apply. It is WO-2 again: three builder reports, bounces used up, `revision_limit` and `tests_failed`, waiting on priya.
+
+![WO-2 at 390 px wide. The case is the whole page: back link, stacked steps, revision_limit and tests_failed, waiting on priya.](docs/img/phone-case.png)
+
+WO-6 is held. The reviewer reported a diff review and `python -m pytest` at `af02712`. Switch has no activity row for either claim, so both stay unverified (`no_activity_row`). Priya's hold counted at 03:43:04. The status line is "Held by priya. Nothing ships."
+
+![WO-6 held. Both reviewer claims are unverified (no_activity_row). Priya's hold counted.](docs/img/case-held.png)
 
 ## Why
 
