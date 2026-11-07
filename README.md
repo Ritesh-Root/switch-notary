@@ -16,6 +16,11 @@ against evidence no agent can write before anything reaches the people who asked
 Contradicted reports go back to the builder with error codes and evidence IDs. The requester sees only
 checked claims, an approval button, and a signed, hash-chained receipt that anyone can verify offline.
 
+> **What has been run.** Everything below was verified with real Switch 0.31.0 and real Mattermost, using
+> scripted builder and reviewer agents with no model (`make demo-offline`, also run by CI's e2e workflow).
+> The live setup with Claude Code and OpenCode as those agents is built and documented (section 3 of
+> [Run it](#run-it)) but was not run end to end during the hackathon.
+
 > Built for the [Flip the Switch Hackathon](https://www.wemakedevs.org/hackathons/switch) (Nov 4–7, 2026), Track 01: Best Business Workflow.
 
 ```
@@ -123,7 +128,7 @@ only ever see what the Notary could check.
 |---|---|---|
 | **Rooms + room group + link** (`templates/desk.rooms.yaml`) | The desk room holds people and the Notary. The work room holds the agents and the Notary. The builder and reviewer are never in the desk, so unchecked words can't reach a person. The gate is the room layout itself. | No gate; agents talk to people directly |
 | **Agent protocol**: WebSocket in, HTTP out (`crates/notary/src/switch/`) | The Notary is a custom always-on agent written in Rust. It gets every message in its rooms over the WebSocket, posts through `/message` and `send_targeted_message`, and runs room operations such as `connect_to_room`. | No way to hear requests or reports |
-| **Agents from several providers**, run by Switch Console | Claude Code builds, OpenCode reviews, a Rust agent notarises, all in one room. Work moves by addressing a name, so the agent behind a name can be swapped. | Nothing runs the agents |
+| **Agents from several providers**, run by Switch Console Designed for Claude Code to build and OpenCode to review, with a Rust agent notarising, all in one room (verified so far with scripted agents). Work moves by addressing a name, so the agent behind a name can be swapped. | Nothing runs the agents |
 | **Room documents** | The **Desk Policy** (approvers, acceptance check, protected files) lives in the room, and the Notary reads it from Switch at intake. Work orders and signed receipts are documents the Notary creates; Switch lets only the creator edit them. | Policy hard-coded in the bot |
 | **Approval cards** (`/agent-sessions/*/approvals`) | The ship decision is a button in chat. The outcome arrives as an `approval_outcome` frame. The Notary checks the presser against the policy's approvers, so sam's press is refused and priya's counts. | No human gate in chat |
 | **Addressing policy** (`PUT /gateway/agents/{id}/addressing-policy`) | Only the owner, the owner's agents, and people in the desk can address the Notary. | Anyone can drive it |
@@ -180,7 +185,10 @@ live (read from Switch), the work orders, each one's ledger, and every receipt c
 http://localhost:8065 (team `switch`); the logins are in `infra/.env` (`MATTERMOST_USER_PASSWORD`,
 `DEMO_PASSWORD_PRIYA`, `DEMO_PASSWORD_SAM`).
 
-### 3. Live: Claude Code builds, OpenCode reviews
+### 3. Live: Claude Code builds, OpenCode reviews (not yet run end to end)
+
+These steps set up the live desk. They were written and checked piece by piece, but a full run with real
+Claude Code and OpenCode agents has not been done yet; the keyless demo above is the verified path.
 
 1. `make up`, then `make sandbox-image ENGINE=podman`.
 2. Install [Switch Console](https://github.com/sandbox-quantum/switch/releases) 0.40.1, choose **Connect to an existing server** `http://localhost:8000`, and sign in as `admin@switch.local` (`GATEWAY_ADMIN_PASSWORD` in `infra/.env`).
