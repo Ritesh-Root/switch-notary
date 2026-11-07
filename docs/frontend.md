@@ -70,6 +70,27 @@ There are two rooms (Mattermost channels via Switch):
 The Notary already runs a small read-only HTTP server: **`http://127.0.0.1:8090`**, with no
 login, localhost only, and nothing in it changes state. Everything below comes from it.
 
+### `GET /`: the viewer page
+
+Read off the `/` route in `crates/notary/src/viewer.rs` on Nov 7, from the source. It is not a JSON
+route, and it was not in the Nov 6 `make demo-offline` capture, so there is no sample body from that
+run here. The handler is `Html(PAGE)`, and `PAGE` is `include_str!("viewer.html")`: one HTML document
+compiled into the binary. The router has no other HTML route and no asset route. Section 6 describes
+what that page draws.
+
+A local `Host` is `127.0.0.1`, `localhost`, or `::1`, with or without a port (`local_host` in
+`viewer.rs`). Anything else is **421**, same as every other route. `get_root_serves_the_viewer_html`
+requests `http://127.0.0.1:{port}/` and checks the 200 row. `foreign_host_is_misdirected_on_every_other_route`
+sends `Host: evil.example` to `/` and checks the 421 row.
+
+| Status | When | Body |
+|---|---|---|
+| 200 | Host is local | the viewer HTML. `Content-Type: text/html; charset=utf-8`. The body starts with `<!doctype html>` and contains `<title>Notary</title>` and `id="case"`. |
+| 421 | any other Host | `open the viewer at http://127.0.0.1 or http://localhost` |
+
+The handler takes no state. It does not open `desk.db`, the ledger, or `receipts/`, so a missing file
+does not change this response. The page then polls the JSON routes below.
+
 ### `GET /api/state`: one call for the whole screen
 ```json
 {
