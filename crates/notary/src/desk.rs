@@ -850,7 +850,161 @@ fn username_of(participant: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::path::{Path, PathBuf};
+    use std::process::Command;
+    use std::sync::{Arc, Mutex};
+    use std::time::Duration;
+
+    use axum::Json;
+    use axum::Router;
+    use axum::extract::{Request, State};
+    use notary_core::judge::{Checked, Verdict};
+
     use super::*;
+
+    const POLICY: &str = "```notary-policy\n{\"protocol\":\"notary-policy/1\",\"approvers\":[\"priya\"],\"acceptance\":[\"pytest\",\"-q\"],\"protected\":[\"tests/**\"],\"max_bounces\":2}\n```\n";
+    const SHA: &str = "3f9a2c1e0b7d4a5c6e8f9012345678901234abcd";
+
+    /// Switch stand-in. Records chat posts. Not a live Switch.
+    async fn switch(State(log): State<Arc<Mutex<Vec<String>>>>, req: Request) -> Json<Value> {
+        let path = req.uri().path().to_string();
+        let bytes = axum::body::to_bytes(req.into_body(), 1_048_576).await.unwrap_or_default();
+        if path.ends_with("/message")
+            && let Ok(v) = serde_json::from_slice::<Value>(&bytes)
+            && let Some(content) = v.get("content").and_then(Value::as_str)
+        {
+            log.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(content.to_string());
+        }
+        let body = if path.ends_with("/ops/connect_to_room") {
+            json!({"result": {"documents": [{"name": "Desk Policy", "id": "pol-1"}]}})
+        } else if path.ends_with("/ops/load_internal_documents") {
+            json!({"result": [{"content": POLICY}]})
+        } else {
+            json!({})
+        };
+        Json(body)
+    }
+
+    struct Fixture {
+        desk: Desk,
+        posts: Arc<Mutex<Vec<String>>>,
+        seq: u32,
+        root: PathBuf,
+    }
+
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.root);
+        }
+    }
+
+    impl Fixture {
+        async fn open() -> Self {
+            let root = std::env::temp_dir().join(format!("notary-desk-{}", notary_core::signing::random_hex(6)));
+            let src = root.join("src");
+            git_repo(&src);
+            let posts = Arc::new(Mutex::new(Vec::new()));
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind the switch stub");
+            let port = listener.local_addr().expect("stub address").port();
+            let app = Router::new().fallback(switch).with_state(Arc::clone(&posts));
+            tokio::spawn(async move {
+                let _ = axum::serve(listener, app).await;
+            });
+            let cfg = Config {
+                switch_url: format!("http://127.0.0.1:{port}"),
+                repo_url: src.display().to_string(),
+                repo_name: "fixture".into(),
+                hub_room: "hub".into(),
+                work_room: "work".into(),
+                builder: "builder".into(),
+                reviewer: None,
+                engine: crate::sandbox::Engine::Podman,
+                image: "0".repeat(64),
+                test_timeout: Duration::from_secs(30),
+                activity: None,
+                approval: Approval::Card,
+                data_dir: root.join("data"),
+                state_dir: root.join("state"),
+                view_addr: None,
+            };
+            let agent = Agent::new(&cfg.switch_url, "desk-test", "test-key");
+            let desk = Desk::open(cfg, agent, "conn-test".into()).expect("open the desk");
+            Self { desk, posts, seq: 0, root }
+        }
+
+        fn posted(&self, needle: &str) -> bool {
+            self.posts.lock().unwrap_or_else(std::sync::PoisonError::into_inner).iter().any(|p| p.contains(needle))
+        }
+
+        fn clear_posts(&self) {
+            self.posts.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clear();
+        }
+
+        async fn hub(&mut self, sender: &str, kind: &str, addressed: bool, body: &str) {
+            self.seq += 1;
+            let room = self.desk.cfg.hub_room.clone();
+            self.desk
+                .on_message(RoomMessage {
+                    room_id: room,
+                    message_id: format!("m{}", self.seq),
+                    body: body.to_string(),
+                    sender_name: sender.to_string(),
+                    sender_kind: kind.to_string(),
+                    addressed,
+                    notice: false,
+                })
+                .await;
+        }
+
+        fn wo(&self, id: &str) -> WorkOrder {
+            self.desk.find_wo("wo = ?1", id).unwrap_or_else(|| panic!("no {id}"))
+        }
+
+        fn orders(&self) -> i64 {
+            self.desk.db.query_row("SELECT COUNT(*) FROM work_orders WHERE wo IS NOT NULL", [], |r| r.get(0)).expect("count work orders")
+        }
+    }
+
+    fn git(dir: &Path, args: &[&str]) {
+        let out = Command::new("git")
+            .current_dir(dir)
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .env("GIT_CONFIG_SYSTEM", "/dev/null")
+            .env("GIT_AUTHOR_NAME", "Notary")
+            .env("GIT_AUTHOR_EMAIL", "notary@example.com")
+            .env("GIT_COMMITTER_NAME", "Notary")
+            .env("GIT_COMMITTER_EMAIL", "notary@example.com")
+            .args(args)
+            .output()
+            .unwrap_or_else(|e| panic!("git: {e}"));
+        assert!(out.status.success(), "git {args:?}\n{}", String::from_utf8_lossy(&out.stderr));
+    }
+
+    fn git_repo(dir: &Path) {
+        std::fs::create_dir_all(dir).expect("src dir");
+        git(dir, &["init", "-b", "main"]);
+        std::fs::write(dir.join("README"), "fixture\n").expect("README");
+        git(dir, &["add", "README"]);
+        git(dir, &["commit", "-m", "init"]);
+    }
+
+    fn failed_audit(wo: &str, attempt: u8) -> Audit {
+        Audit {
+            protocol: "notary-audit/1".into(),
+            wo: wo.to_string(),
+            sha: SHA.into(),
+            agent: "builder".into(),
+            stage: Stage::Builder,
+            attempt,
+            report: format!("rp-{attempt}"),
+            checked: vec![Checked {
+                claim: "c3".into(),
+                kind: "tests_passed".into(),
+                verdict: Verdict::Contradicted { code: Code::TestsFailed, evidence: vec!["ev_test".into()], facts: json!({"failed": 1}) },
+            }],
+            findings: vec![],
+        }
+    }
 
     #[test]
     fn iso_timestamps_parse_to_epoch_millis() {
@@ -864,5 +1018,125 @@ mod tests {
     fn approvers_are_read_from_switch_participant_ids() {
         assert_eq!(username_of("@switch-mattermost-699baaf2-f47a-4c10-af38-74f78c4202ab-priya:localhost"), "priya");
         assert_eq!(username_of("@switch-mattermost-699baaf2-f47a-4c10-af38-74f78c4202ab-mary-jane:localhost"), "mary-jane");
+    }
+
+    #[tokio::test]
+    async fn intake_message_opens_a_work_order() {
+        let mut fix = Fixture::open().await;
+        fix.hub("builder", "agent", true, "@notary new an agent must not file this").await;
+        fix.hub("sam", "user", false, "@notary new an unaddressed message must not file this").await;
+        assert_eq!(fix.orders(), 0);
+
+        let body = "@notary new Globex invoices over $10k show the wrong tax";
+        fix.hub("sam", "user", true, body).await;
+        let room = fix.desk.cfg.hub_room.clone();
+        let message_id = format!("m{}", fix.seq);
+        fix.desk
+            .on_message(RoomMessage {
+                room_id: room,
+                message_id,
+                body: body.to_string(),
+                sender_name: "sam".into(),
+                sender_kind: "user".into(),
+                addressed: true,
+                notice: false,
+            })
+            .await;
+        assert_eq!(fix.orders(), 1, "the same message is not a second work order");
+
+        let w = fix.wo("WO-1");
+        assert_eq!(w.state, "building");
+        assert_eq!(w.requester, "sam");
+        assert_eq!(w.branch, "wo-1");
+        assert_eq!(w.title, "Globex invoices over $10k show the wrong tax");
+        assert_eq!(w.policy.approvers, ["priya"]);
+        assert_eq!(w.policy.max_bounces, 2);
+        assert_eq!(w.base.len(), 40);
+        assert!(w.base.bytes().all(|b| b.is_ascii_hexdigit()));
+
+        let entries = fix.desk.ledger.entries("WO-1").expect("ledger");
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].kind, RecordKind::Policy);
+        let intake = fix.desk.ledger.record(&entries[0].record).expect("read").expect("intake record");
+        assert_eq!(intake["protocol"], "notary-intake/1");
+        assert_eq!(intake["requester"], "sam");
+        assert_eq!(intake["branch"], "wo-1");
+        assert!(fix.posted("@builder WO-1:"), "the builder is told in the work room");
+        assert!(fix.posted("**WO-1** opened for sam"), "the desk hears that the order opened");
+    }
+
+    #[tokio::test]
+    async fn contradicted_reports_bounce_until_the_limit_then_escalate() {
+        let mut fix = Fixture::open().await;
+        fix.hub("sam", "user", true, "@notary new tax is wrong").await;
+        let w = fix.wo("WO-1");
+        assert_eq!(w.policy.max_bounces, 2);
+
+        for attempt in 1..=2 {
+            fix.clear_posts();
+            let audit = failed_audit("WO-1", attempt);
+            let (id, _) = fix.desk.ledger.append("WO-1", RecordKind::Audit, &audit).expect("record the audit");
+            fix.desk.after_audit(&w, &audit, &id).await;
+            let now = fix.wo("WO-1");
+            assert_eq!(now.state, "building", "attempt {attempt} is still within the bounce limit");
+            assert!(fix.posted(&format!("bounced ({attempt} of 2)")), "attempt {attempt} is sent back to the builder");
+            assert!(now.builder_audit.is_none());
+        }
+
+        fix.clear_posts();
+        let audit = failed_audit("WO-1", 3);
+        let (id, _) = fix.desk.ledger.append("WO-1", RecordKind::Audit, &audit).expect("record the audit");
+        fix.desk.after_audit(&w, &audit, &id).await;
+        let now = fix.wo("WO-1");
+        assert_eq!(now.state, "awaiting_approval");
+        assert_eq!(now.builder_audit.as_deref(), Some(id.as_str()));
+        assert!(fix.posted("escalated to a person"));
+        assert!(fix.posted("revision_limit"));
+    }
+
+    #[tokio::test]
+    async fn only_a_desk_policy_approver_can_approve_or_hold() {
+        let mut fix = Fixture::open().await;
+        fix.hub("sam", "user", true, "@notary new tax is wrong").await;
+        fix.desk.set_state("WO-1", "awaiting_approval");
+        fix.clear_posts();
+
+        fix.desk.on_decision("WO-1", "approve", "sam").await;
+        let refused = fix.wo("WO-1");
+        assert_eq!(refused.state, "awaiting_approval");
+        assert_eq!(refused.approval.as_deref(), Some("wo-1-a1"));
+        let decision = latest_decision(&fix, "WO-1");
+        assert_eq!(decision["by"], "sam");
+        assert_eq!(decision["answer"], "approve");
+        assert_eq!(decision["counted"], false);
+        assert!(fix.posted("sam isn't an approver for WO-1 (`not_an_approver`"));
+
+        fix.clear_posts();
+        fix.desk.on_decision("WO-1", "hold", "priya").await;
+        let held = fix.wo("WO-1");
+        assert_eq!(held.state, "held");
+        let decision = latest_decision(&fix, "WO-1");
+        assert_eq!(decision["by"], "priya");
+        assert_eq!(decision["answer"], "hold");
+        assert_eq!(decision["counted"], true);
+        assert!(fix.posted("**WO-1 held** by priya"));
+
+        fix.hub("sam", "user", true, "@notary new a second order").await;
+        fix.desk.set_state("WO-2", "awaiting_approval");
+        fix.clear_posts();
+        fix.desk.on_decision("WO-2", "approve", "priya").await;
+        let approved = fix.wo("WO-2");
+        assert_eq!(approved.state, "approved", "posts: {:?}", fix.posts.lock().unwrap_or_else(std::sync::PoisonError::into_inner));
+        let decision = latest_decision(&fix, "WO-2");
+        assert_eq!(decision["by"], "priya");
+        assert_eq!(decision["counted"], true);
+        assert!(fix.posted("**WO-2 approved by priya.**"));
+        assert!(fix.root.join("data/receipts/receipt-wo-2.json").is_file());
+    }
+
+    fn latest_decision(fix: &Fixture, wo: &str) -> Value {
+        let entries = fix.desk.ledger.entries(wo).expect("ledger");
+        let entry = entries.iter().rev().find(|e| e.kind == RecordKind::Decision).expect("a decision");
+        fix.desk.ledger.record(&entry.record).expect("read").expect("decision record")
     }
 }
